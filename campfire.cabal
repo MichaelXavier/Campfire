@@ -1,0 +1,24 @@
+name: campfire
+version: 0.0.1
+synopsis: Haskell implementation of the Campfire API
+description:
+   Implements the Campfire REST API.
+
+category: Web
+license:  MIT
+license-file: LICENSE
+author:  Michael Xavier
+maintainer: Michael Xavier <michael@michaelxavier.net>
+cabal-version:  >= 1.2
+build-type: Simple
+extra-source-files: README CHANGES
+
+library
+ Exposed-modules: Web.Campfire
+ Ghc-Options:     -Wall
+ build-depends:   base,
+                  aeson >=0.3.1.1,
+                  bytestring >=0.9.1.10,
+                  text >=0.11.0.5,
+                  time >=1.2.0.3,
+                  attoparsec >=0.8.5.0
