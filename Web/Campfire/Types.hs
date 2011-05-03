@@ -11,26 +11,29 @@ import Data.Time.Clock (UTCTime)
 
 data Room = Room { roomId               :: Integer,
                    roomName             :: T.Text,
-                   roomTopic            :: T.Text,
+                   roomTopic            :: Maybe T.Text,
                    roomMembershipLimit  :: Integer,
                    roomFull             :: Bool,
                    roomOpenToGuests     :: Bool,
                    roomActiveTokenValue :: T.Text,
                    roomUpdatedAt        :: UTCTime,
-                   roomUsers            :: [User],
-                   roomCreatedAt        :: UTCTime } deriving (Show)
+                   roomCreatedAt        :: UTCTime,
+                   roomUsers            :: Maybe [User] } deriving (Show)
 
+--FIXME: it seems like room has 2 different formats, depending if you're
+--getting it from /rooms.json or room/id.json
 instance FromJSON Room where
  -- there should be a better way to do this
   parseJSON (Object v) = Room <$> v .: T.pack "id"
                               <*> v .: T.pack "name"
                               <*> v .: T.pack "topic"
-                              <*> v .: T.pack "membership-limit"
+                              <*> v .: T.pack "membership_limit"
                               <*> v .: T.pack "full"
-                              <*> v .: T.pack "open-to-guests"
-                              <*> v .: T.pack "active-token-value"
-                              <*> v .: T.pack "updated-at"
-                              <*> v .: T.pack "created-at"
+                              <*> v .: T.pack "open_to_guests"
+                              <*> v .: T.pack "active_token_value"
+                              <*> v .: T.pack "updated_at"
+                              <*> v .: T.pack "created_at"
+                              <*> v .:? T.pack "users"
   parseJSON _ = mzero
 
 newtype Rooms = Rooms { unRooms :: [Room] } deriving (Show)
@@ -50,9 +53,9 @@ instance FromJSON Message where
   -- consider using an ADT for type
   parseJSON (Object v) = Message <$> v .: T.pack "id"
                                  <*> v .: T.pack "body"
-                                 <*> v .: T.pack "room-id"
-                                 <*> v .: T.pack "user-id"
-                                 <*> v .: T.pack "created-at"
+                                 <*> v .: T.pack "room_id"
+                                 <*> v .: T.pack "user_id"
+                                 <*> v .: T.pack "created_at"
                                  <*> v .: T.pack "type"
 
 newtype Messages = Messages { unMessages :: [Room] } deriving (Show)
@@ -66,15 +69,15 @@ data User = User { userId           :: Integer,
                    userEmailAddress :: T.Text,
                    userAdmin        :: Bool,
                    userCreatedAt    :: UTCTime,
-                   userType         :: T.Text }
+                   userType         :: T.Text } deriving (Show)
 
 instance FromJSON User where
   -- consider using an ADT for type
   parseJSON (Object v) = User <$> v .: T.pack "id"
                               <*> v .: T.pack "name"
-                              <*> v .: T.pack "email-address"
+                              <*> v .: T.pack "email_address"
                               <*> v .: T.pack "admin"
-                              <*> v .: T.pack "created-at"
+                              <*> v .: T.pack "created_at"
                               <*> v .: T.pack "type"
 
 main :: IO ()
