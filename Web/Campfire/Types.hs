@@ -13,26 +13,28 @@ data Room = Room { roomId               :: Integer,
                    roomName             :: T.Text,
                    roomTopic            :: Maybe T.Text,
                    roomMembershipLimit  :: Integer,
-                   roomFull             :: Bool,
-                   roomOpenToGuests     :: Bool,
-                   roomActiveTokenValue :: T.Text,
-                   roomUpdatedAt        :: UTCTime,
-                   roomCreatedAt        :: UTCTime,
+                   roomFull             :: Maybe Bool,
+                   roomOpenToGuests     :: Maybe Bool,
+                   roomActiveTokenValue :: Maybe T.Text,
+                   -- Disable these until i can figure out how to parse out the
+                   -- stupid non-ISO format campfire uses
+                   --roomUpdatedAt        :: UTCTime,
+                   --roomCreatedAt        :: UTCTime,
                    roomUsers            :: Maybe [User] } deriving (Show)
 
 --FIXME: it seems like room has 2 different formats, depending if you're
 --getting it from /rooms.json or room/id.json
 instance FromJSON Room where
  -- there should be a better way to do this
-  parseJSON (Object v) = Room <$> v .: T.pack "id"
-                              <*> v .: T.pack "name"
-                              <*> v .: T.pack "topic"
-                              <*> v .: T.pack "membership_limit"
-                              <*> v .: T.pack "full"
-                              <*> v .: T.pack "open_to_guests"
-                              <*> v .: T.pack "active_token_value"
-                              <*> v .: T.pack "updated_at"
-                              <*> v .: T.pack "created_at"
+  parseJSON (Object v) = Room <$> v .:  T.pack "id"
+                              <*> v .:  T.pack "name"
+                              <*> v .:  T.pack "topic"
+                              <*> v .:  T.pack "membership_limit"
+                              <*> v .:? T.pack "full"
+                              <*> v .:? T.pack "open_to_guests"
+                              <*> v .:? T.pack "active_token_value"
+                             -- <*> v .:  T.pack "updated_at"
+                             -- <*> v .:  T.pack "created_at"
                               <*> v .:? T.pack "users"
   parseJSON _ = mzero
 
@@ -80,6 +82,8 @@ instance FromJSON User where
                               <*> v .: T.pack "created_at"
                               <*> v .: T.pack "type"
 
+-- Just for testing
+--TODO: figure out how to dig out the "room" root object
 main :: IO ()
 main = BS.readFile "rooms.json" >>= printJSON . parsed
        where parsed txt = eitherResult $ parse json txt
