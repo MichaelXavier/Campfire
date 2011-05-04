@@ -1,13 +1,20 @@
+{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
 module Web.Campfire.Types where
 
-import Control.Applicative ((<$>), (<*>))
+import Control.Applicative ((<$>), (<*>), pure)
 import Control.Monad (mzero)
 import Data.Aeson
-import Data.Attoparsec (parse, maybeResult, eitherResult)
+import Data.Aeson.Types (typeMismatch)
+import Data.Attoparsec (parse, maybeResult, eitherResult, Parser(..))
 import Data.ByteString as BS (readFile)
 import qualified Data.Text as T
 import qualified Data.Text.IO as TI
 import Data.Time.Clock (UTCTime)
+import Data.Time.Format
+import qualified Data.Map as M
+import Data.Text
+import Data.Typeable
+import Locale (defaultTimeLocale)
 
 data Room = Room { roomId               :: Integer,
                    roomName             :: T.Text,
@@ -18,8 +25,8 @@ data Room = Room { roomId               :: Integer,
                    roomActiveTokenValue :: Maybe T.Text,
                    -- Disable these until i can figure out how to parse out the
                    -- stupid non-ISO format campfire uses
-                   --roomUpdatedAt        :: UTCTime,
-                   --roomCreatedAt        :: UTCTime,
+                   roomUpdatedAt        :: CampfireTime,
+                   roomCreatedAt        :: CampfireTime,
                    roomUsers            :: Maybe [User] } deriving (Show)
 
 --FIXME: it seems like room has 2 different formats, depending if you're
@@ -33,8 +40,8 @@ instance FromJSON Room where
                               <*> v .:? T.pack "full"
                               <*> v .:? T.pack "open_to_guests"
                               <*> v .:? T.pack "active_token_value"
-                             -- <*> v .:  T.pack "updated_at"
-                             -- <*> v .:  T.pack "created_at"
+                              <*> v .:  T.pack "updated_at"
+                              <*> v .:  T.pack "created_at"
                               <*> v .:? T.pack "users"
   parseJSON _ = mzero
 
@@ -81,6 +88,19 @@ instance FromJSON User where
                               <*> v .: T.pack "admin"
                               <*> v .: T.pack "created_at"
                               <*> v .: T.pack "type"
+
+newtype CampfireTime = CampfireTime { 
+                         fromCampfireTime :: UTCTime 
+                       } deriving (Eq, Ord, Read, Show, Typeable, FormatTime)
+
+instance FromJSON CampfireTime where
+  parseJSON (String t) = case parseTime defaultTimeLocale "%D %T %z" (unpack t) of
+                           Just d -> pure (CampfireTime d)
+                           _      -> fail "Could not parse Campfire-formatted time"
+  parseJSON v = typeMismatch "CampfireTime" v
+
+--TODO: ToJSON CampfireTime: might be unnecessary
+
 
 -- Just for testing
 --TODO: figure out how to dig out the "room" root object
