@@ -55,7 +55,7 @@ data Message = Message { messageId        :: Integer,
                          messageBody      :: T.Text,
                          messageRoomId    :: Integer,
                          messageUserId    :: T.Text,
-                         messageCreatedAt :: UTCTime,
+                         messageCreatedAt :: CampfireTime,
                          messageType      :: T.Text }
 
 instance FromJSON Message where
@@ -77,7 +77,7 @@ data User = User { userId           :: Integer,
                    userName         :: T.Text,
                    userEmailAddress :: T.Text,
                    userAdmin        :: Bool,
-                   userCreatedAt    :: UTCTime,
+                   userCreatedAt    :: CampfireTime,
                    userType         :: T.Text } deriving (Show)
 
 instance FromJSON User where
@@ -94,13 +94,12 @@ newtype CampfireTime = CampfireTime {
                        } deriving (Eq, Ord, Read, Show, Typeable, FormatTime)
 
 instance FromJSON CampfireTime where
-  parseJSON (String t) = case parseTime defaultTimeLocale "%D %T %z" (unpack t) of
+  parseJSON (String t) = case parseTime defaultTimeLocale "%Y/%m/%d %T %z" (unpack t) of
                            Just d -> pure (CampfireTime d)
                            _      -> fail "Could not parse Campfire-formatted time"
   parseJSON v = typeMismatch "CampfireTime" v
 
---TODO: ToJSON CampfireTime: might be unnecessary
-
+--NOTE: ToJSON CampfireTime: might be unnecessary
 
 -- Just for testing
 --TODO: figure out how to dig out the "room" root object
