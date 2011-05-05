@@ -56,7 +56,44 @@ data Message = Message { messageId        :: Integer,
                          messageRoomId    :: Integer,
                          messageUserId    :: T.Text,
                          messageCreatedAt :: CampfireTime,
-                         messageType      :: T.Text }
+                         messageType      :: MessageType }
+
+data MessageType = TextMessage | 
+                   PasteMessage |
+                   SoundMessage |
+                   AdvertisementMessage | 
+                   AllowGuestsMessage |
+                   DisallowGuestsMessage |
+                   IdleMessage |
+                   KickMessage |
+                   LeaveMessage |
+                   SystemMessage |
+                   TimestampMessage |
+                   TopicChangeMessage |
+                   UnidleMessage |
+                   UnlockMessage |
+                   UploadMessage
+
+instance FromJSON MessageType where
+  parseJSON (String v) = case unpack v of
+                           "TextMessage"           -> pure TextMessage
+                           "PasteMessage"          -> pure PasteMessage
+                           "SoundMessage"          -> pure SoundMessage
+                           "AdvertisementMessage"  -> pure AdvertisementMessage
+                           "AllowGuestsMessage"    -> pure AllowGuestsMessage
+                           "DisallowGuestsMessage" -> pure DisallowGuestsMessage
+                           "IdleMessage"           -> pure IdleMessage
+                           "KickMessage"           -> pure KickMessage
+                           "LeaveMessage"          -> pure LeaveMessage
+                           "SystemMessage"         -> pure SystemMessage
+                           "TimestampMessage"      -> pure TimestampMessage
+                           "TopicChangeMessage"    -> pure TopicChangeMessage
+                           "UnidleMessage"         -> pure UnidleMessage
+                           "UnlockMessage"         -> pure UnlockMessage
+                           "UploadMessage"         -> pure UploadMessage
+                           _                       -> mzero
+  parseJSON _ = mzero
+
 
 instance FromJSON Message where
   -- consider using an ADT for type
