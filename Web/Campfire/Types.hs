@@ -16,23 +16,20 @@ import Data.Text
 import Data.Typeable
 import Locale (defaultTimeLocale)
 
-data Room = Room { roomId               :: Integer,
+---------- Rooms
+data Room = Room { roomId               :: Id,
                    roomName             :: T.Text,
                    roomTopic            :: Maybe T.Text,
                    roomMembershipLimit  :: Integer,
                    roomFull             :: Maybe Bool,
                    roomOpenToGuests     :: Maybe Bool,
                    roomActiveTokenValue :: Maybe T.Text,
-                   -- Disable these until i can figure out how to parse out the
-                   -- stupid non-ISO format campfire uses
                    roomUpdatedAt        :: CampfireTime,
                    roomCreatedAt        :: CampfireTime,
                    roomUsers            :: Maybe [User] } deriving (Show)
 
---FIXME: it seems like room has 2 different formats, depending if you're
---getting it from /rooms.json or room/id.json
+ -- There is probably a better way to do this
 instance FromJSON Room where
- -- there should be a better way to do this
   parseJSON (Object v) = Room <$> v .:  T.pack "id"
                               <*> v .:  T.pack "name"
                               <*> v .:  T.pack "topic"
@@ -51,17 +48,36 @@ instance FromJSON Rooms where
   parseJSON (Object v) = Rooms <$> v .: T.pack "rooms"
   parseJSON _          = mzero
 
-data Message = Message { messageId        :: Integer,
+
+---------- Messages
+data Message = Message { messageId        :: Id,
                          messageBody      :: T.Text,
-                         messageRoomId    :: Integer,
+                         messageRoomId    :: Id,
                          messageUserId    :: T.Text,
                          messageCreatedAt :: CampfireTime,
                          messageType      :: MessageType }
 
-data MessageType = TextMessage | 
+instance FromJSON Message where
+  -- consider using an ADT for type
+  parseJSON (Object v) = Message <$> v .: T.pack "id"
+                                 <*> v .: T.pack "body"
+                                 <*> v .: T.pack "room_id"
+                                 <*> v .: T.pack "user_id"
+                                 <*> v .: T.pack "created_at"
+                                 <*> v .: T.pack "type"
+  parseJSON _          = mzero
+
+newtype Messages = Messages { unMessages :: [Room] } deriving (Show)
+
+instance FromJSON Messages where
+  parseJSON (Object v) = Messages <$> v .: T.pack "messages"
+  parseJSON _          = mzero
+
+
+data MessageType = TextMessage |
                    PasteMessage |
                    SoundMessage |
-                   AdvertisementMessage | 
+                   AdvertisementMessage |
                    AllowGuestsMessage |
                    DisallowGuestsMessage |
                    IdleMessage |
@@ -73,6 +89,7 @@ data MessageType = TextMessage |
                    UnidleMessage |
                    UnlockMessage |
                    UploadMessage
+                   deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON MessageType where
   parseJSON (String v) = case unpack v of
@@ -92,30 +109,17 @@ instance FromJSON MessageType where
                            "UnlockMessage"         -> pure UnlockMessage
                            "UploadMessage"         -> pure UploadMessage
                            _                       -> mzero
-  parseJSON _ = mzero
-
-
-instance FromJSON Message where
-  -- consider using an ADT for type
-  parseJSON (Object v) = Message <$> v .: T.pack "id"
-                                 <*> v .: T.pack "body"
-                                 <*> v .: T.pack "room_id"
-                                 <*> v .: T.pack "user_id"
-                                 <*> v .: T.pack "created_at"
-                                 <*> v .: T.pack "type"
-
-newtype Messages = Messages { unMessages :: [Room] } deriving (Show)
-
-instance FromJSON Messages where
-  parseJSON (Object v) = Messages <$> v .: T.pack "messages"
   parseJSON _          = mzero
 
-data User = User { userId           :: Integer,
+
+---------- Users
+data User = User { userId           :: Id,
                    userName         :: T.Text,
                    userEmailAddress :: T.Text,
                    userAdmin        :: Bool,
                    userCreatedAt    :: CampfireTime,
-                   userType         :: T.Text } deriving (Show)
+                   userType         :: UserType } 
+            deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON User where
   -- consider using an ADT for type
@@ -125,6 +129,44 @@ instance FromJSON User where
                               <*> v .: T.pack "admin"
                               <*> v .: T.pack "created_at"
                               <*> v .: T.pack "type"
+  parseJSON _          = mzero
+
+data UserType = Member | 
+                Guest
+                deriving (Eq, Ord, Read, Show, Typeable)
+
+instance FromJSON UserType where
+  parseJSON (String v) = case unpack v of
+                           "Member" -> pure Member
+                           "Guest"  -> pure Guest
+                           _        -> mzero
+  parseJSON _          = mzero
+
+---------- Uploads
+data Upload = Upload { uploadId          :: Id,
+                       uploadName        :: T.Text,
+                       uploadRoomId      :: Id,
+                       uploadUserId      :: Id,
+                       uploadByte_size   :: Integer,
+                       uploadContentType :: T.Text,
+                       uploadFullUrl     :: T.Text,
+                       uploadCreatedAt   :: CampfireTime }
+              deriving (Eq, Ord, Read, Show, Typeable)
+
+instance FromJSON Upload  where
+  -- consider using an ADT for type
+  parseJSON (Object v) = Upload <$> v .: T.pack "id"
+                                <*> v .: T.pack "name"
+                                <*> v .: T.pack "room_id"
+                                <*> v .: T.pack "user_id"
+                                <*> v .: T.pack "byte_size"
+                                <*> v .: T.pack "content_type"
+                                <*> v .: T.pack "full_url"
+                                <*> v .: T.pack "created_at"
+  parseJSON _          = mzero
+
+---------- General Purpose Types
+type Id = Integer
 
 newtype CampfireTime = CampfireTime { 
                          fromCampfireTime :: UTCTime 
@@ -134,14 +176,17 @@ instance FromJSON CampfireTime where
   parseJSON (String t) = case parseTime defaultTimeLocale "%Y/%m/%d %T %z" (unpack t) of
                            Just d -> pure (CampfireTime d)
                            _      -> fail "Could not parse Campfire-formatted time"
-  parseJSON v = typeMismatch "CampfireTime" v
+  parseJSON v          = typeMismatch "CampfireTime" v
 
---NOTE: ToJSON CampfireTime: might be unnecessary
+
 
 -- Just for testing
---TODO: figure out how to dig out the "room" root object
-main :: IO ()
-main = BS.readFile "rooms.json" >>= printJSON . parsed
-       where parsed txt = eitherResult $ parse json txt
-             printJSON (Right obj) = putStrLn $ show $ (fromJSON obj :: Result Rooms)
-             printJSON (Left err)  = putStrLn $ "ERROR: " ++ (show err)
+--main :: IO ()
+--main = BS.readFile "room.json" >>= printJSON . parsed
+--       where parsed txt = eitherResult $ parse json txt
+--             printJSON (Right obj) = putStrLn $ show $ (fromJSON obj :: Result Room)
+--             printJSON (Left err)  = putStrLn $ "ERROR: " ++ (show err)
+--main = BS.readFile "rooms.json" >>= printJSON . parsed
+--       where parsed txt = eitherResult $ parse json txt
+--             printJSON (Right obj) = putStrLn $ show $ (fromJSON obj :: Result Rooms)
+--             printJSON (Left err)  = putStrLn $ "ERROR: " ++ (show err)
