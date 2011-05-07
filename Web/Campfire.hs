@@ -22,6 +22,7 @@ import Data.Text.Encoding (encodeUtf8)
 import Web.Campfire.Types
 import Web.Campfire.Monad
 
+import Control.Monad
 import Network.Curl
 import Network.Curl.Types
 import Network.Curl.Code
@@ -29,17 +30,19 @@ import Data.Aeson
 import Data.Attoparsec (parse, maybeResult, eitherResult)
 
 -- TODO: figure out authentication monad, types
-getRooms :: CampfireEnv -> CampfireM [Room]
-getRooms env =  doGet "/rooms.json" env >>= unRooms . (readResult :: Rooms)
+--getRooms :: CampfireEnv -> CampfireM [Room]
+--getRooms env =  doGet "/rooms.json" env >>= unRooms . (readResult :: Rooms)
 
 
 doGet :: T.Text -> CampfireEnv -> CampfireM (Either CurlCode T.Text)
-doGet path CampfireEnv { cfKey = key, 
-                         cfSubDomain = sub} = do
-                                                resp <- curlGetString url opts
-                                                return $ handleResponse resp
-                                              where url = T.unpack $ cfURL path sub
-                                                    opts = curlOpts key
+doGet path CampfireEnv { cfKey = key, cfSubDomain = sub} = do
+  resp <- liftIO $ curlGetString url opts -- IO (CurlCode, String)
+  return $ handleResponse resp -- IO (Either CurlCode T.Text)
+  where url  = T.unpack $ cfURL path sub
+        opts = curlOpts key
+
+liftIO :: IO a -> CampfireM a
+liftIO x = CampfireM $ \ _ -> x
 
 handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
 handleResponse (CurlOK, str) = Right $ T.pack str
@@ -57,4 +60,4 @@ readResult (Right txt) = handleParse $ eitherResult $ parse json bs
                          where handleParse (Right obj) = fromJSON obj
                                handleParse (Left err) = error $ "Failed to parse: " ++ (show err)
                                bs = encodeUtf8 txt
-readResult (Left code) = error "Unexpected Code: " ++ (show code)
+readResult (Left code) = error $ "Unexpected Code: " ++ (show code)
