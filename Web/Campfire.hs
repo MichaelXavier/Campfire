@@ -30,9 +30,12 @@ import Data.Aeson
 import Data.Attoparsec (parse, maybeResult, eitherResult)
 
 -- TODO: figure out authentication monad, types
---getRooms :: CampfireEnv -> CampfireM [Room]
---getRooms env =  doGet "/rooms.json" env >>= unRooms . (readResult :: Rooms)
-
+getRooms :: CampfireEnv -> CampfireM [Room]
+getRooms env =  do
+  result <- doGet "/rooms.json" env 
+  return $ unWrap $ (readResult :: Either CurlCode T.Text -> Result Rooms) $ result
+                where unWrap (Success rs) = unRooms rs
+                      unWrap (Error err) = error $ "parse error: " ++ err
 
 doGet :: T.Text -> CampfireEnv -> CampfireM (Either CurlCode T.Text)
 doGet path CampfireEnv { cfKey = key, cfSubDomain = sub} = do
@@ -42,7 +45,8 @@ doGet path CampfireEnv { cfKey = key, cfSubDomain = sub} = do
         opts = curlOpts key
 
 liftIO :: IO a -> CampfireM a
-liftIO x = CampfireM $ \ _ -> x
+--liftIO x = CampfireM $ \ _ -> x
+liftIO x = x --MXDEBUG
 
 handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
 handleResponse (CurlOK, str) = Right $ T.pack str
@@ -55,7 +59,7 @@ curlOpts :: T.Text -> [CurlOption]
 curlOpts key = [CurlUserPwd $ T.unpack key, CurlPort 443]
 
 --TODO proper error handling
-readResult :: (FromJSON r) => Either CurlCode T.Text -> r
+readResult :: (FromJSON r) => Either CurlCode T.Text -> Result r
 readResult (Right txt) = handleParse $ eitherResult $ parse json bs
                          where handleParse (Right obj) = fromJSON obj
                                handleParse (Left err) = error $ "Failed to parse: " ++ (show err)
