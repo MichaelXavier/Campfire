@@ -138,6 +138,12 @@ instance FromJSON User where
                               <*> v .: T.pack "type"
   parseJSON _          = mzero
 
+newtype UserWithRoot = UserWithRoot { unRootUser :: User } deriving (Show)
+
+instance FromJSON UserWithRoot where
+  parseJSON (Object v) = UserWithRoot <$> v .: T.pack "user"
+  parseJSON _          = mzero
+
 data UserType = Member | 
                 Guest
                 deriving (Eq, Ord, Read, Show, Typeable)

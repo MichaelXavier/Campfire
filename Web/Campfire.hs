@@ -17,7 +17,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Web.Campfire ( getRooms, 
                       getRoom,
-                      getPresence
+                      getPresence,
+                      getMe,
+                      getUser
                     ) where
 
 import qualified Data.Text as T
@@ -34,6 +36,7 @@ import Network.Curl.Code
 import Data.Aeson
 import Data.Attoparsec (parse, maybeResult, eitherResult)
 
+--------- Room Operations
 getRooms :: CampfireM [Room]
 getRooms = do
   key <- asks cfKey
@@ -59,6 +62,26 @@ getPresence = do
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
+
+--------- User Operations
+getMe :: CampfireM User
+getMe = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  resp <- doGet key sub "/users/me.json"
+  let result = handleResponse resp
+  return $ (unRootUser . unWrap . readResult) result
+
+getUser :: Integer -> CampfireM User
+getUser id = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  resp <- doGet key sub $ foldl1 T.append ["/users/", T.pack $ show id, ".json"]
+  let result = handleResponse resp
+  return $ (unRootUser . unWrap . readResult) result
+
+
+--------- Helpers
 unWrap :: (FromJSON a) => Result a -> a
 unWrap (Success a) = a
 unWrap (Error err) = error $ "parse error: " ++ err
