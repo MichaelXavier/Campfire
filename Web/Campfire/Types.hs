@@ -4,7 +4,7 @@ module Web.Campfire.Types where
 import Control.Applicative ((<$>), (<*>), pure)
 import Control.Monad (mzero)
 import Data.Aeson
-import Data.Aeson.Types (typeMismatch)
+import qualified Data.Aeson.Types as AT (typeMismatch, Parser(..))
 import Data.Attoparsec (parse, maybeResult, eitherResult, Parser(..))
 import Data.ByteString as BS (readFile)
 import qualified Data.Text as T
@@ -17,7 +17,7 @@ import Data.Typeable
 import Locale (defaultTimeLocale)
 
 ---------- Rooms
-data Room = Room { roomId               :: Id,
+data Room = Room { roomId               :: Id, -- I sure don't like this solution
                    roomName             :: T.Text,
                    roomTopic            :: Maybe T.Text,
                    roomMembershipLimit  :: Integer,
@@ -29,8 +29,9 @@ data Room = Room { roomId               :: Id,
                    roomUsers            :: Maybe [User] } deriving (Show)
 
  -- There is probably a better way to do this
+ --TODO: need to pull the room out of the root object
 instance FromJSON Room where
-  parseJSON (Object v) = Room <$> v .:  T.pack "id"
+  parseJSON (Object v) = Room <$> v .:| (T.pack "id", 0)
                               <*> v .:  T.pack "name"
                               <*> v .:  T.pack "topic"
                               <*> v .:  T.pack "membership_limit"
@@ -147,7 +148,7 @@ data Upload = Upload { uploadId          :: Id,
                        uploadName        :: T.Text,
                        uploadRoomId      :: Id,
                        uploadUserId      :: Id,
-                       uploadByteSize   :: Integer,
+                       uploadByteSize    :: Integer,
                        uploadContentType :: T.Text,
                        uploadFullUrl     :: T.Text,
                        uploadCreatedAt   :: CampfireTime }
@@ -176,5 +177,10 @@ instance FromJSON CampfireTime where
   parseJSON (String t) = case parseTime defaultTimeLocale "%Y/%m/%d %T %z" (unpack t) of
                            Just d -> pure (CampfireTime d)
                            _      -> fail "Could not parse Campfire-formatted time"
-  parseJSON v          = typeMismatch "CampfireTime" v
+  parseJSON v          = AT.typeMismatch "CampfireTime" v
 
+-- Helpers
+(.:|) :: (FromJSON a) => Object -> (Text, a) -> AT.Parser a
+obj .:| (key, d) = case M.lookup key obj of
+                        Nothing -> pure d
+                        Just v  -> parseJSON v

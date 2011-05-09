@@ -15,7 +15,7 @@
 --------------------------------------------------------------------
 
 {-# LANGUAGE OverloadedStrings #-}
-module Web.Campfire ( getRooms ) where
+module Web.Campfire ( getRooms, getRoom ) where
 
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
@@ -37,9 +37,21 @@ getRooms = do
   sub <- asks cfSubDomain
   resp <- doGet key sub "/rooms.json"
   let result = handleResponse resp
-  return $ unWrap $ readResult result
-           where unWrap (Success rs) = unRooms rs
-                 unWrap (Error err) = error $ "parse error: " ++ err
+  return $ (unRooms . unWrap . readResult) result
+
+ --TODO: need to pull the room out of the root object
+getRoom :: Integer -> CampfireM Room
+getRoom id = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  resp <- doGet key sub $ foldl1 T.append ["/room/", T.pack $ show id, ".json"]
+  let result = handleResponse resp
+  let room = (unWrap . readResult) result
+  return $ room { roomId = id }
+
+unWrap :: (FromJSON a) => Result a -> a
+unWrap (Success a) = a
+unWrap (Error err) = error $ "parse error: " ++ err
 
 doGet :: T.Text -> T.Text -> T.Text -> CampfireM (CurlCode, String)
 doGet key sub path = liftIO $ curlGetString url opts
