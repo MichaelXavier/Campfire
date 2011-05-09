@@ -41,12 +41,10 @@ getRooms = do
            where unWrap (Success rs) = unRooms rs
                  unWrap (Error err) = error $ "parse error: " ++ err
 
--- TODO: refactor back into doGet and such
 doGet :: T.Text -> T.Text -> T.Text -> CampfireM (CurlCode, String)
 doGet key sub path = liftIO $ curlGetString url opts
                      where url  = T.unpack $ cfURL path sub
                            opts = curlOpts key
-
 
 handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
 handleResponse (CurlOK, str) = Right $ T.pack str
