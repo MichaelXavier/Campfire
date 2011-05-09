@@ -147,7 +147,7 @@ data Upload = Upload { uploadId          :: Id,
                        uploadName        :: T.Text,
                        uploadRoomId      :: Id,
                        uploadUserId      :: Id,
-                       uploadByte_size   :: Integer,
+                       uploadByteSize   :: Integer,
                        uploadContentType :: T.Text,
                        uploadFullUrl     :: T.Text,
                        uploadCreatedAt   :: CampfireTime }

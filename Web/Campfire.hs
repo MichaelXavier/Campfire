@@ -37,7 +37,7 @@ getRooms = do
   sub <- asks cfSubDomain
   resp <- doGet key sub "/rooms.json"
   let result = handleResponse resp
-  return $ unWrap $ ((readResult result) :: Result Rooms)
+  return $ unWrap $ readResult result
            where unWrap (Success rs) = unRooms rs
                  unWrap (Error err) = error $ "parse error: " ++ err
 
@@ -60,6 +60,6 @@ curlOpts key = [CurlUserPwd $ T.unpack key, CurlPort 443]
 readResult :: (FromJSON r) => Either CurlCode T.Text -> Result r
 readResult (Right txt) = handleParse $ eitherResult $ parse json bs
                          where handleParse (Right obj) = fromJSON obj
-                               handleParse (Left err) = error $ "Failed to parse: " ++ (show err)
+                               handleParse (Left err) = error $ "Failed to parse: " ++ show err
                                bs = encodeUtf8 txt
-readResult (Left code) = error $ "Unexpected Code: " ++ (show code)
+readResult (Left code) = error $ "Unexpected Code: " ++ show code
