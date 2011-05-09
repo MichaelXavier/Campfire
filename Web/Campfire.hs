@@ -15,7 +15,10 @@
 --------------------------------------------------------------------
 
 {-# LANGUAGE OverloadedStrings #-}
-module Web.Campfire ( getRooms, getRoom ) where
+module Web.Campfire ( getRooms, 
+                      getRoom,
+                      getPresence
+                    ) where
 
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
@@ -47,6 +50,14 @@ getRoom id = do
   let result = handleResponse resp
   let room = unRootRoom $ (unWrap . readResult) result
   return $ room { roomId = id }
+
+getPresence :: CampfireM [Room]
+getPresence = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  resp <- doGet key sub "/presence.json"
+  let result = handleResponse resp
+  return $ (unRooms . unWrap . readResult) result
 
 unWrap :: (FromJSON a) => Result a -> a
 unWrap (Success a) = a
