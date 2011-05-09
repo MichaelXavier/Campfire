@@ -178,15 +178,3 @@ instance FromJSON CampfireTime where
                            _      -> fail "Could not parse Campfire-formatted time"
   parseJSON v          = typeMismatch "CampfireTime" v
 
-
-
--- Just for testing
---main :: IO ()
---main = BS.readFile "room.json" >>= printJSON . parsed
---       where parsed txt = eitherResult $ parse json txt
---             printJSON (Right obj) = putStrLn $ show $ (fromJSON obj :: Result Room)
---             printJSON (Left err)  = putStrLn $ "ERROR: " ++ (show err)
---main = BS.readFile "rooms.json" >>= printJSON . parsed
---       where parsed txt = eitherResult $ parse json txt
---             printJSON (Right obj) = putStrLn $ show $ (fromJSON obj :: Result Rooms)
---             printJSON (Left err)  = putStrLn $ "ERROR: " ++ (show err)
