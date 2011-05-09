@@ -43,12 +43,18 @@ instance FromJSON Room where
                               <*> v .:? T.pack "users"
   parseJSON _ = mzero
 
+newtype RoomWithRoot = RoomWithRoot { unRootRoom :: Room } deriving (Show)
+
+instance FromJSON RoomWithRoot where
+  parseJSON (Object v) = RoomWithRoot <$> v .: T.pack "room"
+  parseJSON _          = mzero
+
+
 newtype Rooms = Rooms { unRooms :: [Room] } deriving (Show)
 
 instance FromJSON Rooms where
   parseJSON (Object v) = Rooms <$> v .: T.pack "rooms"
   parseJSON _          = mzero
-
 
 ---------- Messages
 data Message = Message { messageId        :: Id,

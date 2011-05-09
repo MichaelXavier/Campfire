@@ -39,14 +39,13 @@ getRooms = do
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
- --TODO: need to pull the room out of the root object
 getRoom :: Integer -> CampfireM Room
 getRoom id = do
   key <- asks cfKey
   sub <- asks cfSubDomain
   resp <- doGet key sub $ foldl1 T.append ["/room/", T.pack $ show id, ".json"]
   let result = handleResponse resp
-  let room = (unWrap . readResult) result
+  let room = unRootRoom $ (unWrap . readResult) result
   return $ room { roomId = id }
 
 unWrap :: (FromJSON a) => Result a -> a
