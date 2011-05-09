@@ -24,6 +24,7 @@ import Web.Campfire.Monad
 
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Reader
 import Network.Curl
 import Network.Curl.Types
 import Network.Curl.Code
@@ -31,19 +32,17 @@ import Data.Aeson
 import Data.Attoparsec (parse, maybeResult, eitherResult)
 
 -- TODO: figure out authentication monad, types
-getRooms :: CampfireEnv -> IO [Room]
-getRooms env =  do
-  result <- doGet "/rooms.json" env
-  return $ unWrap $ (readResult :: Either CurlCode T.Text -> Result Rooms) $ result
-                where unWrap (Success rs) = unRooms rs
-                      unWrap (Error err) = error $ "parse error: " ++ err
+getRooms :: CampfireM [Room]
+getRooms = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  resp <- liftIO $ curlGetString (T.unpack $ cfURL "/rooms.json" sub) (curlOpts key)
+  let result = handleResponse resp
+  return $ unWrap $ ((readResult result) :: Result Rooms)
+           where unWrap (Success rs) = unRooms rs
+                 unWrap (Error err) = error $ "parse error: " ++ err
 
-doGet :: T.Text -> CampfireEnv -> IO (Either CurlCode T.Text)
-doGet path CampfireEnv { cfKey = key, cfSubDomain = sub} =  do
-  resp <- curlGetString url opts -- IO (CurlCode, String)
-  return $ handleResponse resp -- IO (Either CurlCode T.Text)
-  where url  = T.unpack $ cfURL path sub
-        opts = curlOpts key
+-- TODO: refactor back into doGet and such
 
 handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
 handleResponse (CurlOK, str) = Right $ T.pack str
