@@ -80,6 +80,8 @@ getUser id = do
   let result = handleResponse resp
   return $ (unRootUser . unWrap . readResult) result
 
+--------- Message Operations
+
 
 --------- Helpers
 unWrap :: (FromJSON a) => Result a -> a

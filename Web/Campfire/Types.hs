@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, OverloadedStrings #-}
 module Web.Campfire.Types where
 
 import Control.Applicative ((<$>), (<*>), pure)
@@ -31,29 +31,29 @@ data Room = Room { roomId               :: Id, -- I sure don't like this solutio
  -- There is probably a better way to do this
  --TODO: need to pull the room out of the root object
 instance FromJSON Room where
-  parseJSON (Object v) = Room <$> v .:| (T.pack "id", 0)
-                              <*> v .:  T.pack "name"
-                              <*> v .:  T.pack "topic"
-                              <*> v .:  T.pack "membership_limit"
-                              <*> v .:? T.pack "full"
-                              <*> v .:? T.pack "open_to_guests"
-                              <*> v .:? T.pack "active_token_value"
-                              <*> v .:  T.pack "updated_at"
-                              <*> v .:  T.pack "created_at"
-                              <*> v .:? T.pack "users"
+  parseJSON (Object v) = Room <$> v .:| ("id", 0)
+                              <*> v .:  "name"
+                              <*> v .:  "topic"
+                              <*> v .:  "membership_limit"
+                              <*> v .:? "full"
+                              <*> v .:? "open_to_guests"
+                              <*> v .:? "active_token_value"
+                              <*> v .:  "updated_at"
+                              <*> v .:  "created_at"
+                              <*> v .:? "users"
   parseJSON _ = mzero
 
 newtype RoomWithRoot = RoomWithRoot { unRootRoom :: Room } deriving (Show)
 
 instance FromJSON RoomWithRoot where
-  parseJSON (Object v) = RoomWithRoot <$> v .: T.pack "room"
+  parseJSON (Object v) = RoomWithRoot <$> v .: "room"
   parseJSON _          = mzero
 
 
 newtype Rooms = Rooms { unRooms :: [Room] } deriving (Show)
 
 instance FromJSON Rooms where
-  parseJSON (Object v) = Rooms <$> v .: T.pack "rooms"
+  parseJSON (Object v) = Rooms <$> v .: "rooms"
   parseJSON _          = mzero
 
 ---------- Messages
@@ -66,18 +66,18 @@ data Message = Message { messageId        :: Id,
 
 instance FromJSON Message where
   -- consider using an ADT for type
-  parseJSON (Object v) = Message <$> v .: T.pack "id"
-                                 <*> v .: T.pack "body"
-                                 <*> v .: T.pack "room_id"
-                                 <*> v .: T.pack "user_id"
-                                 <*> v .: T.pack "created_at"
-                                 <*> v .: T.pack "type"
+  parseJSON (Object v) = Message <$> v .: "id"
+                                 <*> v .: "body"
+                                 <*> v .: "room_id"
+                                 <*> v .: "user_id"
+                                 <*> v .: "created_at"
+                                 <*> v .: "type"
   parseJSON _          = mzero
 
 newtype Messages = Messages { unMessages :: [Room] } deriving (Show)
 
 instance FromJSON Messages where
-  parseJSON (Object v) = Messages <$> v .: T.pack "messages"
+  parseJSON (Object v) = Messages <$> v .: "messages"
   parseJSON _          = mzero
 
 
@@ -118,6 +118,35 @@ instance FromJSON MessageType where
                            _                       -> mzero
   parseJSON _          = mzero
 
+---------- Statements
+-- Statements are messages that you can send to CampFire
+data Statement = TextStatement { statementBody :: T.Text } |
+                 PasteStatement { statementBody :: T.Text} |
+                 SoundStatement { soundType :: Sound     } |
+                 TweetStatement { statementUrl  :: T.Text}
+                 deriving (Eq, Ord, Read, Show, Typeable)
+
+instance ToJSON Statement where
+  toJSON TextStatement  { statementBody = b} =
+    object ["type" .= ("TextMessage" :: T.Text), "body" .= b]
+  toJSON PasteStatement { statementBody = b} =
+    object ["type" .= ("PasteMessage" :: T.Text), "body" .= b]
+  toJSON SoundStatement { soundType = t    } =
+    object ["type" .= ("SoundMessage" :: T.Text), "body" .= t]
+  toJSON TweetStatement { statementUrl = u } =
+    object ["type" .= ("TweetStatemetn" :: T.Text), "body" .= u]
+
+
+data Sound = Rimshot |
+             Crickets |
+             Trombone
+             deriving (Eq, Ord, Read, Show, Typeable)
+
+instance ToJSON Sound where
+  toJSON Rimshot  = String "rimshot"
+  toJSON Crickets = String "crickets"
+  toJSON Trombone = String "trombone"
+
 
 ---------- Users
 data User = User { userId           :: Id,
@@ -130,18 +159,18 @@ data User = User { userId           :: Id,
 
 instance FromJSON User where
   -- consider using an ADT for type
-  parseJSON (Object v) = User <$> v .: T.pack "id"
-                              <*> v .: T.pack "name"
-                              <*> v .: T.pack "email_address"
-                              <*> v .: T.pack "admin"
-                              <*> v .: T.pack "created_at"
-                              <*> v .: T.pack "type"
+  parseJSON (Object v) = User <$> v .: "id"
+                              <*> v .: "name"
+                              <*> v .: "email_address"
+                              <*> v .: "admin"
+                              <*> v .: "created_at"
+                              <*> v .: "type"
   parseJSON _          = mzero
 
 newtype UserWithRoot = UserWithRoot { unRootUser :: User } deriving (Show)
 
 instance FromJSON UserWithRoot where
-  parseJSON (Object v) = UserWithRoot <$> v .: T.pack "user"
+  parseJSON (Object v) = UserWithRoot <$> v .: "user"
   parseJSON _          = mzero
 
 data UserType = Member | 
@@ -168,14 +197,14 @@ data Upload = Upload { uploadId          :: Id,
 
 instance FromJSON Upload  where
   -- consider using an ADT for type
-  parseJSON (Object v) = Upload <$> v .: T.pack "id"
-                                <*> v .: T.pack "name"
-                                <*> v .: T.pack "room_id"
-                                <*> v .: T.pack "user_id"
-                                <*> v .: T.pack "byte_size"
-                                <*> v .: T.pack "content_type"
-                                <*> v .: T.pack "full_url"
-                                <*> v .: T.pack "created_at"
+  parseJSON (Object v) = Upload <$> v .: "id"
+                                <*> v .: "name"
+                                <*> v .: "room_id"
+                                <*> v .: "user_id"
+                                <*> v .: "byte_size"
+                                <*> v .: "content_type"
+                                <*> v .: "full_url"
+                                <*> v .: "created_at"
   parseJSON _          = mzero
 
 ---------- General Purpose Types
