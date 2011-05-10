@@ -49,7 +49,7 @@ getRoom :: Integer -> CampfireM Room
 getRoom id = do
   key <- asks cfKey
   sub <- asks cfSubDomain
-  resp <- doGet key sub $ foldl1 T.append ["/room/", T.pack $ show id, ".json"]
+  resp <- doGet key sub $ T.concat ["/room/", T.pack $ show id, ".json"]
   let result = handleResponse resp
   let room = unRootRoom $ (unWrap . readResult) result
   return $ room { roomId = id }
@@ -76,7 +76,7 @@ getUser :: Integer -> CampfireM User
 getUser id = do
   key <- asks cfKey
   sub <- asks cfSubDomain
-  resp <- doGet key sub $ foldl1 T.append ["/users/", T.pack $ show id, ".json"]
+  resp <- doGet key sub $ T.concat ["/users/", T.pack $ show id, ".json"]
   let result = handleResponse resp
   return $ (unRootUser . unWrap . readResult) result
 
@@ -96,7 +96,7 @@ handleResponse (CurlOK, str) = Right $ T.pack str
 handleResponse (code, _)     = Left code
 
 cfURL :: T.Text -> T.Text -> T.Text
-cfURL path sub = foldl1 T.append ["https://", sub, ".campfirenow.com", path]
+cfURL path sub = T.concat ["https://", sub, ".campfirenow.com", path]
 
 curlOpts :: T.Text -> [CurlOption]
 curlOpts key = [CurlUserPwd $ T.unpack key, CurlPort 443]
