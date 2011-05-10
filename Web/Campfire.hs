@@ -76,11 +76,18 @@ getUser :: Integer -> CampfireM User
 getUser id = do
   key <- asks cfKey
   sub <- asks cfSubDomain
-  resp <- doGet key sub $ T.concat ["/users/", T.pack $ show id, ".json"]
+  resp <- doGet key sub path
   let result = handleResponse resp
   return $ (unRootUser . unWrap . readResult) result
+            where path = T.concat ["/users/", T.pack $ show id, ".json"]
 
 --------- Message Operations
+speak :: Integer -> Statement -> CampfireM ()
+speak roomId stmt = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  doPost key sub path stmt -- I think this is antipattern
+            where path    = T.concat ["/rooms/", T.pack $ show roomId, ".json"]
 
 
 --------- Helpers
@@ -92,6 +99,9 @@ doGet :: T.Text -> T.Text -> T.Text -> CampfireM (CurlCode, String)
 doGet key sub path = liftIO $ curlGetString url opts
                      where url  = T.unpack $ cfURL path sub
                            opts = curlOpts key
+
+doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM ()
+doPost key sub path pay = undefined
 
 handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
 handleResponse (CurlOK, str) = Right $ T.pack str
