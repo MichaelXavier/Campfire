@@ -19,11 +19,13 @@ module Web.Campfire ( getRooms,
                       getRoom,
                       getPresence,
                       getMe,
-                      getUser
+                      getUser,
+                      speak
                     ) where
 
 import qualified Data.Text as T
 import Data.Text.Encoding (encodeUtf8)
+import qualified Data.ByteString.Lazy.Char8 as LBS (unpack)
 import Web.Campfire.Types
 import Web.Campfire.Monad
 
@@ -82,7 +84,7 @@ getUser id = do
             where path = T.concat ["/users/", T.pack $ show id, ".json"]
 
 --------- Message Operations
-speak :: Integer -> Statement -> CampfireM ()
+speak :: Integer -> Statement -> CampfireM (CurlCode, String)
 speak roomId stmt = do
   key <- asks cfKey
   sub <- asks cfSubDomain
@@ -100,8 +102,20 @@ doGet key sub path = liftIO $ curlGetString url opts
                      where url  = T.unpack $ cfURL path sub
                            opts = curlOpts key
 
-doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM ()
-doPost key sub path pay = undefined
+--GRRAAAHHHHHHH DIE DIE DIE
+doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
+doPost key sub path pay = liftIO $ curlGetString url opts
+                     where opts    = method_POST ++ curlOpts key ++ [CurlVerbose True, post', post, ct, CurlFailOnError False, CurlHttpTransferDecoding False, CurlHttpContentDecoding False]
+                           url     = T.unpack $ cfURL path sub
+                           post'    = CurlPostFields [T.unpack encPay]
+                           post    = CurlHttpPost [hpost]
+                           hpost   = HttpPost { postName = "", contentType = Just "application/json", content = ContentString (T.unpack encPay), extraHeaders = [], showName = Nothing }
+                           ct      = CurlHttpHeaders ["Content-Type: application/json"]
+                           --encPath = encodePath path encPay
+                           encPay  = encodePayload pay
+
+encodePayload :: (ToJSON a) => a -> T.Text
+encodePayload pay = T.pack $ LBS.unpack $ encode pay
 
 handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
 handleResponse (CurlOK, str) = Right $ T.pack str
