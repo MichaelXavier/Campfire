@@ -126,9 +126,10 @@ data Statement = TextStatement { statementBody :: T.Text } |
                  TweetStatement { statementUrl  :: T.Text}
                  deriving (Eq, Ord, Read, Show, Typeable)
 
+--FIXME: wrap all instances in root object
 instance ToJSON Statement where
   toJSON TextStatement  { statementBody = b} =
-    object ["type" .= ("TextMessage" :: T.Text), "body" .= b]
+    object $ ["message" .= (object ["type" .= ("TextMessage" :: T.Text), "body" .= b])]
   toJSON PasteStatement { statementBody = b} =
     object ["type" .= ("PasteMessage" :: T.Text), "body" .= b]
   toJSON SoundStatement { soundType = t    } =

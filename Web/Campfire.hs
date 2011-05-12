@@ -14,7 +14,7 @@
 -- 
 --------------------------------------------------------------------
 
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
 module Web.Campfire ( getRooms, 
                       getRoom,
                       getPresence,
@@ -37,6 +37,12 @@ import Network.Curl.Types
 import Network.Curl.Code
 import Data.Aeson
 import Data.Attoparsec (parse, maybeResult, eitherResult)
+
+import Control.Monad (liftM)
+import qualified Data.ByteString as BS
+--import qualified Data.ByteString.Lazy as LBS
+import qualified Data.ByteString.Lazy.Char8 as LBS8
+import Data.IORef
 
 --------- Room Operations
 getRooms :: CampfireM [Room]
@@ -88,8 +94,8 @@ speak :: Integer -> Statement -> CampfireM (CurlCode, String)
 speak roomId stmt = do
   key <- asks cfKey
   sub <- asks cfSubDomain
-  doPost key sub path stmt -- I think this is antipattern
-            where path    = T.concat ["/rooms/", T.pack $ show roomId, ".json"]
+  doPost' key sub path stmt -- I think this is antipattern
+            where path    = T.concat ["/room/", T.pack $ show roomId, "/speak.json"]
 
 
 --------- Helpers
@@ -102,7 +108,32 @@ doGet key sub path = liftIO $ curlGetString url opts
                      where url  = T.unpack $ cfURL path sub
                            opts = curlOpts key
 
---GRRAAAHHHHHHH DIE DIE DIE
+-- This makes me physically ill
+doPost' :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
+doPost' key sub path pay = liftIO $ withCurlDo $ do
+  bodyRef <- newIORef []
+  h       <- initialize
+  mapM_ (setopt h) $ [CurlURL url,
+                      CurlNoBody False,
+                      CurlFollowLocation False,
+                      CurlMaxRedirs 0,
+                      CurlAutoReferer False,
+                      CurlVerbose True,
+                      CurlPostFields [postBody],
+                      CurlHttpHeaders ["Content-Type: application/json"],
+                      CurlWriteFunction $ bodyFunction bodyRef] ++ (curlOpts key)
+  code <- perform h
+  result <- fmap (LBS8.unpack . LBS8.fromChunks . reverse) $ readIORef bodyRef
+  return (code, result)
+                           where postBody = T.unpack $ encodePayload pay
+                                 url      = T.unpack $ cfURL path sub
+
+bodyFunction :: IORef [BS.ByteString] -> WriteFunction
+bodyFunction r = gatherOutput_ $ \s -> do
+  bs <- BS.packCStringLen s
+  modifyIORef r (bs:)
+
+
 doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
 doPost key sub path pay = liftIO $ curlGetString url opts
                      where opts    = method_POST ++ curlOpts key ++ [CurlVerbose True, post', post, ct, CurlFailOnError False, CurlHttpTransferDecoding False, CurlHttpContentDecoding False]
@@ -115,7 +146,7 @@ doPost key sub path pay = liftIO $ curlGetString url opts
                            encPay  = encodePayload pay
 
 encodePayload :: (ToJSON a) => a -> T.Text
-encodePayload pay = T.pack $ LBS.unpack $ encode pay
+encodePayload pay = T.pack $ LBS8.unpack $ encode pay
 
 handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
 handleResponse (CurlOK, str) = Right $ T.pack str
