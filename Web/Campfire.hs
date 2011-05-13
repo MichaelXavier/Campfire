@@ -118,7 +118,6 @@ getRecentMessages id limit since_id = do
             limitS (Nothing) = []
             limitS (Just i)  = [("since_message_id", show i)]
 
--- Doesn't quite parse yet
 getTodayTranscript :: Integer -> CampfireM [Message]
 getTodayTranscript id = do
   key  <- asks cfKey

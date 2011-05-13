@@ -95,7 +95,8 @@ data MessageType = TextMessage |
                    TopicChangeMessage |
                    UnidleMessage |
                    UnlockMessage |
-                   UploadMessage
+                   UploadMessage |
+                   EnterMessage
                    deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON MessageType where
@@ -115,6 +116,7 @@ instance FromJSON MessageType where
                            "UnidleMessage"         -> pure UnidleMessage
                            "UnlockMessage"         -> pure UnlockMessage
                            "UploadMessage"         -> pure UploadMessage
+                           "EnterMessage"          -> pure EnterMessage
                            _                       -> mzero
   parseJSON _          = mzero
 
