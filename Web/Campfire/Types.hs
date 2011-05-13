@@ -58,11 +58,11 @@ instance FromJSON Rooms where
 
 ---------- Messages
 data Message = Message { messageId        :: Id,
-                         messageBody      :: T.Text,
+                         messageBody      :: Maybe T.Text,
                          messageRoomId    :: Id,
-                         messageUserId    :: T.Text,
+                         messageUserId    :: Maybe Id,
                          messageCreatedAt :: CampfireTime,
-                         messageType      :: MessageType }
+                         messageType      :: MessageType } deriving (Show)
 
 instance FromJSON Message where
   -- consider using an ADT for type
@@ -74,7 +74,7 @@ instance FromJSON Message where
                                  <*> v .: "type"
   parseJSON _          = mzero
 
-newtype Messages = Messages { unMessages :: [Room] } deriving (Show)
+newtype Messages = Messages { unMessages :: [Message] } deriving (Show)
 
 instance FromJSON Messages where
   parseJSON (Object v) = Messages <$> v .: "messages"
@@ -129,13 +129,16 @@ data Statement = TextStatement { statementBody :: T.Text } |
 --FIXME: wrap all instances in root object
 instance ToJSON Statement where
   toJSON TextStatement  { statementBody = b} =
-    object $ ["message" .= (object ["type" .= ("TextMessage" :: T.Text), "body" .= b])]
+    "message" |- object ["type" .= ("TextMessage" :: T.Text), "body" .= b]
   toJSON PasteStatement { statementBody = b} =
-    object ["type" .= ("PasteMessage" :: T.Text), "body" .= b]
+    "message" |- object ["type" .= ("PasteMessage" :: T.Text), "body" .= b]
   toJSON SoundStatement { soundType = t    } =
-    object ["type" .= ("SoundMessage" :: T.Text), "body" .= t]
+    "message" |- object ["type" .= ("SoundMessage" :: T.Text), "body" .= t]
   toJSON TweetStatement { statementUrl = u } =
-    object ["type" .= ("TweetStatemetn" :: T.Text), "body" .= u]
+    "message" |- object ["type" .= ("TweetStatemetn" :: T.Text), "body" .= u]
+
+(|-) :: T.Text -> Value -> Value
+(|-) label obj = object [label .= obj]
 
 
 data Sound = Rimshot |
@@ -206,6 +209,18 @@ instance FromJSON Upload  where
                                 <*> v .: "content_type"
                                 <*> v .: "full_url"
                                 <*> v .: "created_at"
+  parseJSON _          = mzero
+
+newtype Uploads = Uploads { unUploads :: [Upload] } deriving (Show)
+
+instance FromJSON Uploads where
+  parseJSON (Object v) = Uploads <$> v .: "uploads"
+  parseJSON _          = mzero
+
+newtype UploadWithRoot = UploadWithRoot { unRootUpload :: Upload } deriving (Show)
+
+instance FromJSON UploadWithRoot where
+  parseJSON (Object v) = UploadWithRoot <$> v .: "upload"
   parseJSON _          = mzero
 
 ---------- General Purpose Types
