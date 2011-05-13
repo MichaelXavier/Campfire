@@ -25,7 +25,8 @@ module Web.Campfire ( getRooms,
                       getUploads,
                       getUpload,
                       search,
-                      getTodayTranscript
+                      getTodayTranscript,
+                      getTranscript
                     ) where
 
 import qualified Data.Text as T
@@ -49,6 +50,8 @@ import Control.Monad (liftM)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS8
 import Data.IORef
+
+import Data.Time.Calendar (Day(..), toGregorian)
 
 --------- Room Operations
 getRooms :: CampfireM [Room]
@@ -124,9 +127,19 @@ getTodayTranscript id = do
   sub  <- asks cfSubDomain
   resp <- doGet key sub path []
   let result = handleResponse resp
-  liftIO $ putStrLn $ snd resp
   return $ (unMessages . unWrap . readResult) result
       where path = T.concat ["room/", i2t id, "/transcript.json"]
+
+getTranscript :: Integer -> Day -> CampfireM [Message]
+getTranscript id day = do
+  key  <- asks cfKey
+  sub  <- asks cfSubDomain
+  resp <- doGet key sub path []
+  let result = handleResponse resp
+  return $ (unMessages . unWrap . readResult) result
+                  where path = T.concat ["room/", i2t id, "/transcript/", i2t y, 
+                                         "/", i2t m, "/", i2t d, ".json"]
+                        (y, m, d) = toGregorian day
 
 --------- Upload Operations
 getUploads :: Integer -> CampfireM [Upload]
@@ -162,7 +175,7 @@ search term = do
                   encTerm = T.pack $ encString True ok_path $ T.unpack term
 
 --------- Helpers
-i2t :: Integer -> T.Text
+i2t :: (Integral a) => a -> T.Text
 i2t = T.pack . show
 
 unWrap :: (FromJSON a) => Result a -> a
