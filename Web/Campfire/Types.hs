@@ -56,6 +56,16 @@ instance FromJSON Rooms where
   parseJSON (Object v) = Rooms <$> v .: "rooms"
   parseJSON _          = mzero
 
+
+data RoomUpdate = RoomUpdate { updateRoomName  :: Maybe T.Text, 
+                               updateRoomTopic :: Maybe T.Text } deriving (Show)
+
+--TODO: maybe omit missing fields
+instance ToJSON RoomUpdate where
+  toJSON RoomUpdate {updateRoomName = n, updateRoomTopic = t} =
+    "room" |- object ["name" .= n, "topic" .= t]
+  
+
 ---------- Messages
 data Message = Message { messageId        :: Id,
                          messageBody      :: Maybe T.Text,

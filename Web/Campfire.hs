@@ -18,6 +18,7 @@
 module Web.Campfire ( getRooms, 
                       getRoom,
                       getPresence,
+                      setTopic,
                       getMe,
                       getUser,
                       speak,
@@ -79,6 +80,15 @@ getPresence = do
   resp <- doGet key sub "presence.json" []
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
+
+setTopic :: Integer -> T.Text -> CampfireM (CurlCode, String)
+setTopic id topic = do
+  key  <- asks cfKey
+  sub  <- asks cfSubDomain
+  doPut key sub path update
+                  where path   = T.concat ["room/", i2t id, ".json"]
+                        update = RoomUpdate { updateRoomName = Nothing,
+                                              updateRoomTopic = Just topic }
 
 
 --------- User Operations
@@ -187,10 +197,15 @@ doGet key sub path params = liftIO $ curlGetString url opts
                      where url  = T.unpack $ cfURL path sub params
                            opts = curlOpts key
 
+doPut :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
+doPut = rawPost [CurlPut True]
 
 -- Yeesh
 doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
-doPost key sub path pay = liftIO $ withCurlDo $ do
+doPost = rawPost []
+
+rawPost :: (ToJSON a) => [CurlOption] -> T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
+rawPost overrides key sub path pay = liftIO $ withCurlDo $ do
   bodyRef <- newIORef []
   h       <- initialize
   mapM_ (setopt h) $ [CurlURL url,
@@ -201,12 +216,13 @@ doPost key sub path pay = liftIO $ withCurlDo $ do
                       CurlVerbose True, --temporary
                       CurlPostFields [postBody],
                       CurlHttpHeaders ["Content-Type: application/json"],
-                      CurlWriteFunction $ bodyFunction bodyRef] ++ (curlOpts key)
+                      CurlWriteFunction $ bodyFunction bodyRef] ++ extraOpts
   code <- perform h
   result <- fmap (LBS8.unpack . LBS8.fromChunks . reverse) $ readIORef bodyRef
   return (code, result)
-                           where postBody = T.unpack $ encodePayload pay
-                                 url      = T.unpack $ cfURL path sub []
+                           where postBody  = T.unpack $ encodePayload pay
+                                 url       = T.unpack $ cfURL path sub []
+                                 extraOpts =  (curlOpts key) ++ overrides
 
 bodyFunction :: IORef [BS.ByteString] -> WriteFunction
 bodyFunction r = gatherOutput_ $ \s -> do
