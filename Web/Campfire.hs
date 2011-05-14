@@ -14,7 +14,7 @@
 -- 
 --------------------------------------------------------------------
 
-{-# LANGUAGE OverloadedStrings, ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Web.Campfire ( getRooms, 
                       getRoom,
                       getPresence,
@@ -103,7 +103,6 @@ updateRoom id update = do
   doPost key sub path $ encode update
                   where path   = T.concat ["room/", i2t id, ".json"]
 
--- Getting 405 Method Not Allowed errors on the below 4 functions
 joinRoom :: Integer -> CampfireM (Int, LBS.ByteString)
 joinRoom id = do
   key  <- asks cfKey
@@ -158,7 +157,6 @@ speak id stmt = do
   doPost key sub path $ encode stmt
             where path = T.concat ["room/", i2t id, "/speak.json"]
 
---FIXME: Highlight and unhighlight returning 500
 highlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
 highlightMessage id = do
   key <- asks cfKey
@@ -271,7 +269,7 @@ postWithPayload meth key sub path pay = liftIO $ withManager $ \manager -> do
 
 genRequest :: T.Text -> T.Text -> T.Text -> Query -> Method -> LBS.ByteString -> Request IO
 genRequest key sub path params meth pay = applyBasicAuth bkey "X" $ Request { 
-  method         = methodPut,
+  method         = meth,
   secure         = True,
   checkCerts     = \_ -> return True, -- uhhh
   host           = h,
