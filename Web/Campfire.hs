@@ -35,23 +35,22 @@ import Data.Text.Encoding (encodeUtf8)
 import qualified Data.ByteString.Lazy.Char8 as LBS (unpack, length)
 import Web.Campfire.Types
 import Web.Campfire.Monad
-
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
-import Network.Curl
-import Network.Curl.Types
-import Network.Curl.Code
-import Network.Curl.Post
-import Network.URL
+import Network.URL (encString, ok_path)
 import Data.Aeson
 import Data.Attoparsec (parse, maybeResult, eitherResult)
-
-import Control.Monad (liftM)
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy.Char8 as LBS8
-import Data.IORef
-
+import Network.HTTP.Enumerator
+import Network.HTTP.Types (methodGet,
+                           methodPut,
+                           methodPost,
+                           headerContentType,
+                           Method(..),
+                           QueryItem(..),
+                           Query(..))
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Time.Calendar (Day(..), toGregorian)
 
 --------- Room Operations
@@ -81,7 +80,7 @@ getPresence = do
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
-setTopic :: Integer -> T.Text -> CampfireM (CurlCode, String)
+setTopic :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
 setTopic id topic = do
   key  <- asks cfKey
   sub  <- asks cfSubDomain
@@ -110,7 +109,7 @@ getUser id = do
             where path = T.concat ["users/", i2t id, ".json"]
 
 --------- Message Operations
-speak :: Integer -> Statement -> CampfireM (CurlCode, String)
+speak :: Integer -> Statement -> CampfireM (Int, LBS.ByteString)
 speak roomId stmt = do
   key <- asks cfKey
   sub <- asks cfSubDomain
@@ -127,9 +126,9 @@ getRecentMessages id limit since_id = do
       where params           = (limitP limit) ++ (limitS since_id)
             path             = T.concat ["room/", i2t id, "/recent.json"]
             limitP (Nothing) = []
-            limitP (Just l)  = [("limit", show l)]
+            limitP (Just l)  = [("limit", Just $ BS.pack $ show l)]
             limitS (Nothing) = []
-            limitS (Just i)  = [("since_message_id", show i)]
+            limitS (Just i)  = [("since_message_id", Just $ BS.pack $ show i)]
 
 getTodayTranscript :: Integer -> CampfireM [Message]
 getTodayTranscript id = do
@@ -192,64 +191,45 @@ unWrap :: (FromJSON a) => Result a -> a
 unWrap (Success a) = a
 unWrap (Error err) = error $ "parse error: " ++ err
 
-doGet :: T.Text -> T.Text -> T.Text -> [(String, String)] -> CampfireM (CurlCode, String)
-doGet key sub path params = liftIO $ curlGetString url opts
-                     where url  = T.unpack $ cfURL path sub params
-                           opts = curlOpts key
+doGet :: T.Text -> T.Text -> T.Text -> Query -> CampfireM (Int, LBS.ByteString)
+doGet key sub path params = liftIO $ withManager $ \manager -> do
+  Response { statusCode = c, responseBody = b} <- httpLbsRedirect req manager
+  return (c, b)
+                     where req = genRequest key sub path params methodGet $ LBS.empty
 
-doPut :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
-doPut = rawPost [CurlPut True]
+doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (Int, LBS.ByteString)
+doPost = postWithPayload methodPost
 
--- Yeesh
-doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
-doPost = rawPost []
+doPut :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (Int, LBS.ByteString)
+doPut = postWithPayload methodPut
 
-rawPost :: (ToJSON a) => [CurlOption] -> T.Text -> T.Text -> T.Text -> a -> CampfireM (CurlCode, String)
-rawPost overrides key sub path pay = liftIO $ withCurlDo $ do
-  bodyRef <- newIORef []
-  h       <- initialize
-  mapM_ (setopt h) $ [CurlURL url,
-                      CurlNoBody False,
-                      CurlFollowLocation False,
-                      CurlMaxRedirs 0,
-                      CurlAutoReferer False,
-                      CurlVerbose True, --temporary
-                      CurlPostFields [postBody],
-                      CurlHttpHeaders ["Content-Type: application/json"],
-                      CurlWriteFunction $ bodyFunction bodyRef] ++ extraOpts
-  code <- perform h
-  result <- fmap (LBS8.unpack . LBS8.fromChunks . reverse) $ readIORef bodyRef
-  return (code, result)
-                           where postBody  = T.unpack $ encodePayload pay
-                                 url       = T.unpack $ cfURL path sub []
-                                 extraOpts =  (curlOpts key) ++ overrides
+postWithPayload :: (ToJSON a) => Method -> T.Text -> T.Text -> T.Text -> a -> CampfireM (Int, LBS.ByteString)
+postWithPayload meth key sub path pay = liftIO $ withManager $ \manager -> do
+  Response { statusCode = c, responseBody = b} <- httpLbsRedirect req manager
+  return (c, b)
+                     where req = genRequest key sub path [] meth $ encode pay
 
-bodyFunction :: IORef [BS.ByteString] -> WriteFunction
-bodyFunction r = gatherOutput_ $ \s -> do
-  bs <- BS.packCStringLen s
-  modifyIORef r (bs:)
+genRequest :: T.Text -> T.Text -> T.Text -> Query -> Method -> LBS.ByteString -> Request IO
+genRequest key sub path params meth pay = applyBasicAuth bkey "X" $ Request { 
+  method         = methodPut,
+  secure         = True,
+  checkCerts     = \_ -> return True, -- uhhh
+  host           = h,
+  port           = 443,
+  path           = encodeUtf8 path,
+  queryString    = params,
+  requestHeaders = headers,
+  requestBody    = RequestBodyLBS pay }
+                    where h       = encodeUtf8 $ T.concat [sub, ".campfirenow.com"]
+                          headers = [headerContentType "application/json"]
+                          bkey    = encodeUtf8 key
 
-encodePayload :: (ToJSON a) => a -> T.Text
-encodePayload pay = T.pack $ LBS8.unpack $ encode pay
-
-handleResponse :: (CurlCode, String) -> Either CurlCode T.Text
-handleResponse (CurlOK, str) = Right $ T.pack str
-handleResponse (code, _)     = Left code
-
-cfURL :: T.Text -> T.Text -> [(String,String)] -> T.Text
-cfURL path sub params = T.pack $ exportURL url
-  where url        = URL { url_type   = Absolute host,
-                           url_path   = T.unpack path,
-                           url_params = params }
-        host       = Host { protocol = HTTP True, 
-                            host = T.unpack $ sub `T.append` ".campfirenow.com",
-                            port = Just 443 }
-
-curlOpts :: T.Text -> [CurlOption]
-curlOpts key = [CurlUserPwd $ T.unpack key, CurlPort 443, CurlVerbose True]
+handleResponse :: (Int, LBS.ByteString) -> Either Int T.Text
+handleResponse (200, str) = Right $ T.pack $ LBS.unpack str
+handleResponse (code, _)  = Left code
 
 --TODO proper error handling
-readResult :: (FromJSON r) => Either CurlCode T.Text -> Result r
+readResult :: (FromJSON r) => Either Int T.Text -> Result r
 readResult (Right txt) = handleParse $ eitherResult $ parse json bs
                          where handleParse (Right obj) = fromJSON obj
                                handleParse (Left err) = error $ "Failed to parse: " ++ show err
