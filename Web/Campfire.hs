@@ -18,7 +18,8 @@
 module Web.Campfire ( getRooms, 
                       getRoom,
                       getPresence,
-                      setTopic,
+                      setRoomTopic,
+                      setRoomName,
                       getMe,
                       getUser,
                       speak,
@@ -80,15 +81,20 @@ getPresence = do
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
-setTopic :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
-setTopic id topic = do
+setRoomTopic :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
+setRoomTopic id topic = updateRoom id $ RoomUpdate { updateRoomName = Nothing, 
+                                                   updateRoomTopic = Just topic }
+
+setRoomName :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
+setRoomName id name = updateRoom id $ RoomUpdate { updateRoomName = Just name, 
+                                                   updateRoomTopic = Nothing }
+
+updateRoom :: Integer -> RoomUpdate -> CampfireM (Int, LBS.ByteString)
+updateRoom id update = do
   key  <- asks cfKey
   sub  <- asks cfSubDomain
   doPut key sub path update
                   where path   = T.concat ["room/", i2t id, ".json"]
-                        update = RoomUpdate { updateRoomName = Nothing,
-                                              updateRoomTopic = Just topic }
-
 
 --------- User Operations
 getMe :: CampfireM User
