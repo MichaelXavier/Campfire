@@ -20,9 +20,15 @@ module Web.Campfire ( getRooms,
                       getPresence,
                       setRoomTopic,
                       setRoomName,
+                      joinRoom,
+                      leaveRoom,
+                      lockRoom,
+                      unlockRoom,
                       getMe,
                       getUser,
                       speak,
+                      highlightMessage,
+                      unhighlightMessage,
                       getRecentMessages,
                       getUploads,
                       getUpload,
@@ -46,6 +52,7 @@ import Network.HTTP.Enumerator
 import Network.HTTP.Types (methodGet,
                            methodPut,
                            methodPost,
+                           methodDelete,
                            headerContentType,
                            Method(..),
                            QueryItem(..),
@@ -93,8 +100,37 @@ updateRoom :: Integer -> RoomUpdate -> CampfireM (Int, LBS.ByteString)
 updateRoom id update = do
   key  <- asks cfKey
   sub  <- asks cfSubDomain
-  doPut key sub path update
+  doPost key sub path $ encode update
                   where path   = T.concat ["room/", i2t id, ".json"]
+
+-- Getting 405 Method Not Allowed errors on the below 4 functions
+joinRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+joinRoom id = do
+  key  <- asks cfKey
+  sub  <- asks cfSubDomain
+  doPost key sub path LBS.empty
+                  where path   = T.concat ["room/", i2t id, "/join.json"]
+
+leaveRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+leaveRoom id = do
+  key  <- asks cfKey
+  sub  <- asks cfSubDomain
+  doPost key sub path LBS.empty
+                  where path   = T.concat ["room/", i2t id, "/leave.json"]
+
+lockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+lockRoom id = do
+  key  <- asks cfKey
+  sub  <- asks cfSubDomain
+  doPost key sub path LBS.empty
+                  where path   = T.concat ["room/", i2t id, "/lock.json"]
+
+unlockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+unlockRoom id = do
+  key  <- asks cfKey
+  sub  <- asks cfSubDomain
+  doPost key sub path LBS.empty
+                  where path   = T.concat ["room/", i2t id, "/unlock.json"]
 
 --------- User Operations
 getMe :: CampfireM User
@@ -116,11 +152,26 @@ getUser id = do
 
 --------- Message Operations
 speak :: Integer -> Statement -> CampfireM (Int, LBS.ByteString)
-speak roomId stmt = do
+speak id stmt = do
   key <- asks cfKey
   sub <- asks cfSubDomain
-  doPost key sub path stmt -- I think this is antipattern
-            where path = T.concat ["room/", i2t roomId, "/speak.json"]
+  doPost key sub path $ encode stmt
+            where path = T.concat ["room/", i2t id, "/speak.json"]
+
+--FIXME: Highlight and unhighlight returning 500
+highlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
+highlightMessage id = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  doPost key sub path LBS.empty
+            where path = T.concat ["messages/", i2t id, "/star.json"]
+
+unhighlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
+unhighlightMessage id = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  doDelete key sub path LBS.empty
+            where path = T.concat ["messages/", i2t id, "/star.json"]
 
 getRecentMessages :: Integer -> Maybe Integer -> Maybe Integer -> CampfireM [Message]
 getRecentMessages id limit since_id = do
@@ -203,17 +254,20 @@ doGet key sub path params = liftIO $ withManager $ \manager -> do
   return (c, b)
                      where req = genRequest key sub path params methodGet $ LBS.empty
 
-doPost :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (Int, LBS.ByteString)
+doPost :: T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.ByteString)
 doPost = postWithPayload methodPost
 
-doPut :: (ToJSON a) => T.Text -> T.Text -> T.Text -> a -> CampfireM (Int, LBS.ByteString)
+doPut :: T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.ByteString)
 doPut = postWithPayload methodPut
 
-postWithPayload :: (ToJSON a) => Method -> T.Text -> T.Text -> T.Text -> a -> CampfireM (Int, LBS.ByteString)
+doDelete :: T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.ByteString)
+doDelete = postWithPayload methodDelete
+
+postWithPayload :: Method -> T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.ByteString)
 postWithPayload meth key sub path pay = liftIO $ withManager $ \manager -> do
   Response { statusCode = c, responseBody = b} <- httpLbsRedirect req manager
   return (c, b)
-                     where req = genRequest key sub path [] meth $ encode pay
+                     where req = genRequest key sub path [] meth pay
 
 genRequest :: T.Text -> T.Text -> T.Text -> Query -> Method -> LBS.ByteString -> Request IO
 genRequest key sub path params meth pay = applyBasicAuth bkey "X" $ Request { 
