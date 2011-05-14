@@ -37,17 +37,23 @@ module Web.Campfire ( getRooms,
                       getTranscript
                     ) where
 
-import qualified Data.Text as T
-import Data.Text.Encoding (encodeUtf8)
-import qualified Data.ByteString.Lazy.Char8 as LBS (unpack, length)
 import Web.Campfire.Types
 import Web.Campfire.Monad
+
+import qualified Data.Text as T
+import qualified Data.ByteString.Lazy.Char8 as LBS (unpack, length)
+import qualified Data.ByteString.Char8 as BS
+import qualified Data.ByteString.Lazy.Char8 as LBS
+import Data.Text.Encoding (encodeUtf8)
+import Data.Aeson
+import Data.Attoparsec (parse, maybeResult, eitherResult)
+import Data.Time.Calendar (Day(..), toGregorian)
+
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
+
 import Network.URL (encString, ok_path)
-import Data.Aeson
-import Data.Attoparsec (parse, maybeResult, eitherResult)
 import Network.HTTP.Enumerator
 import Network.HTTP.Types (methodGet,
                            methodPut,
@@ -57,9 +63,6 @@ import Network.HTTP.Types (methodGet,
                            Method(..),
                            QueryItem(..),
                            Query(..))
-import qualified Data.ByteString.Char8 as BS
-import qualified Data.ByteString.Lazy.Char8 as LBS
-import Data.Time.Calendar (Day(..), toGregorian)
 
 --------- Room Operations
 getRooms :: CampfireM [Room]
