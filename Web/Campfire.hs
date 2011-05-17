@@ -41,7 +41,6 @@ import Web.Campfire.Types
 import Web.Campfire.Monad
 
 import qualified Data.Text as T
-import qualified Data.ByteString.Lazy.Char8 as LBS (unpack, length)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Text.Encoding (encodeUtf8)
@@ -66,17 +65,13 @@ import Network.HTTP.Types (methodGet,
 
 --------- Room Operations
 getRooms :: CampfireM [Room]
-getRooms = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getRooms = withEnv $ \key sub -> do
   resp <- doGet key sub "rooms.json" []
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
 getRoom :: Integer -> CampfireM Room
-getRoom id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getRoom id = withEnv $ \key sub -> do
   resp <- doGet key sub path []
   let result = handleResponse resp
   let room = unRootRoom $ (unWrap . readResult) result
@@ -84,69 +79,53 @@ getRoom id = do
           where path = T.concat ["room/", i2t id, ".json"]
 
 getPresence :: CampfireM [Room]
-getPresence = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getPresence = withEnv $ \key sub -> do
   resp <- doGet key sub "presence.json" []
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
 setRoomTopic :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
-setRoomTopic id topic = updateRoom id $ RoomUpdate { updateRoomName = Nothing, 
+setRoomTopic id topic = updateRoom id RoomUpdate { updateRoomName  = Nothing, 
                                                    updateRoomTopic = Just topic }
 
 setRoomName :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
-setRoomName id name = updateRoom id $ RoomUpdate { updateRoomName = Just name, 
-                                                   updateRoomTopic = Nothing }
+setRoomName id name = updateRoom id RoomUpdate { updateRoomName  = Just name, 
+                                                 updateRoomTopic = Nothing }
 
 updateRoom :: Integer -> RoomUpdate -> CampfireM (Int, LBS.ByteString)
-updateRoom id update = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+updateRoom id update = withEnv $ \key sub ->
   doPost key sub path $ encode update
                   where path   = T.concat ["room/", i2t id, ".json"]
 
 joinRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-joinRoom id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+joinRoom id = withEnv $ \key sub ->
   doPost key sub path LBS.empty
                   where path   = T.concat ["room/", i2t id, "/join.json"]
 
 leaveRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-leaveRoom id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+leaveRoom id = withEnv $ \key sub ->
   doPost key sub path LBS.empty
                   where path   = T.concat ["room/", i2t id, "/leave.json"]
 
 lockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-lockRoom id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+lockRoom id = withEnv $ \key sub ->
   doPost key sub path LBS.empty
                   where path   = T.concat ["room/", i2t id, "/lock.json"]
 
 unlockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-unlockRoom id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+unlockRoom id = withEnv $ \key sub ->
   doPost key sub path LBS.empty
                   where path   = T.concat ["room/", i2t id, "/unlock.json"]
 
 --------- User Operations
 getMe :: CampfireM User
-getMe = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getMe = withEnv $ \key sub -> do
   resp <- doGet key sub "users/me.json" []
   let result = handleResponse resp
   return $ (unRootUser . unWrap . readResult) result
 
 getUser :: Integer -> CampfireM User
-getUser id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getUser id = withEnv $ \key sub -> do
   resp <- doGet key sub path []
   let result = handleResponse resp
   return $ (unRootUser . unWrap . readResult) result
@@ -154,34 +133,26 @@ getUser id = do
 
 --------- Message Operations
 speak :: Integer -> Statement -> CampfireM (Int, LBS.ByteString)
-speak id stmt = do
-  key <- asks cfKey
-  sub <- asks cfSubDomain
+speak id stmt = withEnv $ \key sub ->
   doPost key sub path $ encode stmt
             where path = T.concat ["room/", i2t id, "/speak.json"]
 
 highlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
-highlightMessage id = do
-  key <- asks cfKey
-  sub <- asks cfSubDomain
+highlightMessage id = withEnv $ \key sub ->
   doPost key sub path LBS.empty
             where path = T.concat ["messages/", i2t id, "/star.json"]
 
 unhighlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
-unhighlightMessage id = do
-  key <- asks cfKey
-  sub <- asks cfSubDomain
+unhighlightMessage id = withEnv $ \key sub ->
   doDelete key sub path LBS.empty
             where path = T.concat ["messages/", i2t id, "/star.json"]
 
 getRecentMessages :: Integer -> Maybe Integer -> Maybe Integer -> CampfireM [Message]
-getRecentMessages id limit since_id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getRecentMessages id limit since_id = withEnv $ \key sub -> do
   resp <- doGet key sub path params
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
-      where params           = (limitP limit) ++ (limitS since_id)
+      where params           = limitP limit ++ limitS since_id
             path             = T.concat ["room/", i2t id, "/recent.json"]
             limitP (Nothing) = []
             limitP (Just l)  = [("limit", Just $ BS.pack $ show l)]
@@ -189,18 +160,14 @@ getRecentMessages id limit since_id = do
             limitS (Just i)  = [("since_message_id", Just $ BS.pack $ show i)]
 
 getTodayTranscript :: Integer -> CampfireM [Message]
-getTodayTranscript id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getTodayTranscript id = withEnv $ \key sub -> do
   resp <- doGet key sub path []
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
       where path = T.concat ["room/", i2t id, "/transcript.json"]
 
 getTranscript :: Integer -> Day -> CampfireM [Message]
-getTranscript id day = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getTranscript id day = withEnv $ \key sub -> do
   resp <- doGet key sub path []
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
@@ -210,9 +177,7 @@ getTranscript id day = do
 
 --------- Upload Operations
 getUploads :: Integer -> CampfireM [Upload]
-getUploads id = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getUploads id = withEnv $ \key sub -> do
   resp <- doGet key sub path []
   let result = handleResponse resp
   return $ (unUploads . unWrap . readResult) result
@@ -220,9 +185,7 @@ getUploads id = do
 
 --FIXME: this may not work, getting 404s
 getUpload :: Integer -> Integer -> CampfireM Upload
-getUpload roomId uploadId = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+getUpload roomId uploadId = withEnv $ \key sub -> do
   resp <- doGet key sub path []
   let result = handleResponse resp
   let upload = unRootUpload $ (unWrap . readResult) result
@@ -232,9 +195,7 @@ getUpload roomId uploadId = do
 
 --------- Upload Operations
 search :: T.Text -> CampfireM [Message]
-search term = do
-  key  <- asks cfKey
-  sub  <- asks cfSubDomain
+search term = withEnv $ \key sub -> do
   resp <- doGet key sub path []
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
@@ -242,6 +203,14 @@ search term = do
                   encTerm = T.pack $ encString True ok_path $ T.unpack term
 
 --------- Helpers
+withEnv :: (T.Text -> T.Text -> CampfireM a) -> CampfireM a
+withEnv fn = do
+  key <- asks cfKey
+  sub <- asks cfSubDomain
+  fn key sub
+
+
+
 i2t :: (Integral a) => a -> T.Text
 i2t = T.pack . show
 
@@ -253,7 +222,7 @@ doGet :: T.Text -> T.Text -> T.Text -> Query -> CampfireM (Int, LBS.ByteString)
 doGet key sub path params = liftIO $ withManager $ \manager -> do
   Response { statusCode = c, responseBody = b} <- httpLbsRedirect req manager
   return (c, b)
-                     where req = genRequest key sub path params methodGet $ LBS.empty
+                  where req = genRequest key sub path params methodGet LBS.empty
 
 doPost :: T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.ByteString)
 doPost = postWithPayload methodPost
@@ -271,7 +240,7 @@ postWithPayload meth key sub path pay = liftIO $ withManager $ \manager -> do
                      where req = genRequest key sub path [] meth pay
 
 genRequest :: T.Text -> T.Text -> T.Text -> Query -> Method -> LBS.ByteString -> Request IO
-genRequest key sub path params meth pay = applyBasicAuth bkey "X" $ Request { 
+genRequest key sub path params meth pay = applyBasicAuth bkey "X" Request { 
   method         = meth,
   secure         = True,
   checkCerts     = \_ -> return True, -- uhhh
