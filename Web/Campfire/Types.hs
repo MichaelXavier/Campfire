@@ -1,11 +1,39 @@
+--------------------------------------------------------------------
+-- |
+-- Module      : Web.Campfire.Types
+-- Description : Types returned by the Campfire API
+-- Copyright   : (c) Michael Xavier 2011
+-- License     : MIT
+--
+-- Maintainer: Michael Xavier <michael@michaelxavier.net>
+-- Stability : provisional
+-- Portability: portable
+--
+--------------------------------------------------------------------
+
 {-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, OverloadedStrings #-}
-module Web.Campfire.Types where
+module Web.Campfire.Types ( Room(..),
+                            RoomWithRoot(..),
+                            Rooms(..),
+                            RoomUpdate(..),
+                            Message(..),
+                            Messages(..),
+                            MessageType(..),
+                            Statement(..),
+                            Sound(..),
+                            User(..),
+                            UserWithRoot(..),
+                            UserType(..),
+                            Upload(..),
+                            Uploads(..),
+                            UploadWithRoot(..),
+                            Id,
+                            CampfireTime(..) ) where
 
 import Control.Applicative ((<$>), (<*>), pure)
 import Control.Monad (mzero)
 import Data.Aeson
 import qualified Data.Aeson.Types as AT (typeMismatch, Parser)
---import Data.Attoparsec (parse, maybeResult, eitherResult, Parser)
 import qualified Data.Text as T
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
@@ -15,19 +43,20 @@ import Data.Typeable
 import Locale (defaultTimeLocale)
 
 ---------- Rooms
-data Room = Room { roomId               :: Id, -- I sure don't like this solution
-                   roomName             :: T.Text,
-                   roomTopic            :: Maybe T.Text,
-                   roomMembershipLimit  :: Integer,
-                   roomFull             :: Maybe Bool,
-                   roomOpenToGuests     :: Maybe Bool,
-                   roomActiveTokenValue :: Maybe T.Text,
-                   roomUpdatedAt        :: CampfireTime,
-                   roomCreatedAt        :: CampfireTime,
-                   roomUsers            :: Maybe [User] } deriving (Show)
+data Room 
+  -- |A chat room on a Campfire site
+  = Room { roomId               :: Id,
+           roomName             :: T.Text,
+           roomTopic            :: Maybe T.Text, -- ^ Room topic if available
+           roomMembershipLimit  :: Integer,      -- ^ Maximum number of users that may be in this room
+           roomFull             :: Maybe Bool,   -- ^ May not be present depending on the API call used
+           roomOpenToGuests     :: Maybe Bool,   -- ^ May not be present depending on the API call used
+           roomActiveTokenValue :: Maybe T.Text, -- ^ Campfire API doesn't really specify what this means
+           roomUpdatedAt        :: CampfireTime,
+           roomCreatedAt        :: CampfireTime,
+           roomUsers            :: Maybe [User] } deriving (Eq, Ord, Read, Show, Typeable)
 
  -- There is probably a better way to do this
- --TODO: need to pull the room out of the root object
 instance FromJSON Room where
   parseJSON (Object v) = Room <$> v .:| ("id", 0)
                               <*> v .:  "name"
@@ -41,22 +70,27 @@ instance FromJSON Room where
                               <*> v .:? "users"
   parseJSON _ = mzero
 
-newtype RoomWithRoot = RoomWithRoot { unRootRoom :: Room } deriving (Show)
+-- |Utility type used for extracting a Room from the root JSON object the Campfire API returns
+newtype RoomWithRoot = RoomWithRoot { unRootRoom :: Room } deriving (Eq, Ord, Read, Show, Typeable)
+ 
 
 instance FromJSON RoomWithRoot where
   parseJSON (Object v) = RoomWithRoot <$> v .: "room"
   parseJSON _          = mzero
 
 
-newtype Rooms = Rooms { unRooms :: [Room] } deriving (Show)
+-- |Utility type used for extracting a Room from the list returned by the Campfire API
+newtype Rooms = Rooms { unRooms :: [Room] } deriving (Eq, Ord, Read, Show, Typeable)
+ 
 
 instance FromJSON Rooms where
   parseJSON (Object v) = Rooms <$> v .: "rooms"
   parseJSON _          = mzero
 
 
+-- |Modification to be made to a room.
 data RoomUpdate = RoomUpdate { updateRoomName  :: Maybe T.Text, 
-                               updateRoomTopic :: Maybe T.Text } deriving (Show)
+                               updateRoomTopic :: Maybe T.Text } deriving (Eq, Ord, Read, Show, Typeable)
 
 --TODO: maybe omit missing fields
 instance ToJSON RoomUpdate where
@@ -65,12 +99,14 @@ instance ToJSON RoomUpdate where
   
 
 ---------- Messages
+
+-- |A single line of dialog in a particular chat
 data Message = Message { messageId        :: Id,
                          messageBody      :: Maybe T.Text,
                          messageRoomId    :: Id,
                          messageUserId    :: Maybe Id,
                          messageCreatedAt :: CampfireTime,
-                         messageType      :: MessageType } deriving (Show)
+                         messageType      :: MessageType } deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON Message where
   -- consider using an ADT for type
@@ -82,21 +118,23 @@ instance FromJSON Message where
                                  <*> v .: "type"
   parseJSON _          = mzero
 
-newtype Messages = Messages { unMessages :: [Message] } deriving (Show)
+-- |Utility type used for extracting a Message from the list returned by the Campfire API
+newtype Messages = Messages { unMessages :: [Message] } deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON Messages where
   parseJSON (Object v) = Messages <$> v .: "messages"
   parseJSON _          = mzero
 
 
+-- |Distinct types of messages which can be found in Campfire
 data MessageType = TextMessage |
-                   PasteMessage |
-                   SoundMessage |
+                   PasteMessage |          -- ^ Monospaced text displayed in block form
+                   SoundMessage |          -- ^ Audio sound effect message
                    AdvertisementMessage |
                    AllowGuestsMessage |
                    DisallowGuestsMessage |
                    IdleMessage |
-                   KickMessage |
+                   KickMessage |           -- ^ Message indicating that a user was kicked out
                    LeaveMessage |
                    SystemMessage |
                    TimestampMessage |
@@ -129,11 +167,11 @@ instance FromJSON MessageType where
   parseJSON _          = mzero
 
 ---------- Statements
--- Statements are messages that you can send to CampFire
+-- |Statements are messages that you can send to CampFire.
 data Statement = TextStatement { statementBody :: T.Text } |
                  PasteStatement { statementBody :: T.Text} |
-                 SoundStatement { soundType :: Sound     } |
-                 TweetStatement { statementUrl  :: T.Text}
+                 SoundStatement { soundType :: Sound     } | -- ^ Play an audio message in the room
+                 TweetStatement { statementUrl  :: T.Text}   -- ^ Display a tweet from a url on Twitter
                  deriving (Eq, Ord, Read, Show, Typeable)
 
 --FIXME: wrap all instances in root object
@@ -151,6 +189,7 @@ instance ToJSON Statement where
 (|-) label obj = object [label .= obj]
 
 
+-- |Different pre-set sounds that can be played in a room.
 data Sound = Rimshot |
              Crickets |
              Trombone
@@ -163,10 +202,12 @@ instance ToJSON Sound where
 
 
 ---------- Users
+
+-- |User which can be found in any number of rooms.
 data User = User { userId           :: Id,
                    userName         :: T.Text,
                    userEmailAddress :: T.Text,
-                   userAdmin        :: Bool,
+                   userAdmin        :: Bool,   -- ^ User has administrative privileges
                    userCreatedAt    :: CampfireTime,
                    userType         :: UserType } 
             deriving (Eq, Ord, Read, Show, Typeable)
@@ -181,12 +222,14 @@ instance FromJSON User where
                               <*> v .: "type"
   parseJSON _          = mzero
 
-newtype UserWithRoot = UserWithRoot { unRootUser :: User } deriving (Show)
+-- |Utility type used for extracting a User from the root JSON object the Campfire API returns
+newtype UserWithRoot = UserWithRoot { unRootUser :: User } deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON UserWithRoot where
   parseJSON (Object v) = UserWithRoot <$> v .: "user"
   parseJSON _          = mzero
 
+-- |Different classes of users that can be found in chat.
 data UserType = Member | 
                 Guest
                 deriving (Eq, Ord, Read, Show, Typeable)
@@ -199,6 +242,8 @@ instance FromJSON UserType where
   parseJSON _          = mzero
 
 ---------- Uploads
+
+-- |File upload in a room.
 data Upload = Upload { uploadId          :: Id,
                        uploadName        :: T.Text,
                        uploadRoomId      :: Id,
@@ -221,13 +266,15 @@ instance FromJSON Upload  where
                                 <*> v .: "created_at"
   parseJSON _          = mzero
 
-newtype Uploads = Uploads { unUploads :: [Upload] } deriving (Show)
+-- |Utility type used for extracting a Upload from the list returned by the Campfire API
+newtype Uploads = Uploads { unUploads :: [Upload] } deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON Uploads where
   parseJSON (Object v) = Uploads <$> v .: "uploads"
   parseJSON _          = mzero
 
-newtype UploadWithRoot = UploadWithRoot { unRootUpload :: Upload } deriving (Show)
+-- |Utility type used for extracting an Upload from the root JSON object the Campfire API returns
+newtype UploadWithRoot = UploadWithRoot { unRootUpload :: Upload } deriving (Eq, Ord, Read, Show, Typeable)
 
 instance FromJSON UploadWithRoot where
   parseJSON (Object v) = UploadWithRoot <$> v .: "upload"
@@ -236,6 +283,7 @@ instance FromJSON UploadWithRoot where
 ---------- General Purpose Types
 type Id = Integer
 
+-- |Utility type to normalize the non-standard date format that the Campfire API returns
 newtype CampfireTime = CampfireTime { 
                          fromCampfireTime :: UTCTime 
                        } deriving (Eq, Ord, Read, Show, Typeable, FormatTime)
