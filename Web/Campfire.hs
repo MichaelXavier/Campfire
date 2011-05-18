@@ -6,11 +6,12 @@
 -- License     : MIT
 --
 -- Maintainer: Michael Xavier <michael@michaelxavier.net>
--- Stability : not
+-- Stability : provisional
 -- Portability: portable
 --
--- Toplevel module for the Campfire API. Should ideally cover all calls that the
--- Campfire REST API exposes at a high level.
+-- Toplevel module for the Campfire API operating in the CamfireM monad. 
+-- Covers the entire campfire API excluding the streaming and file upload APIs.
+-- Might include support for these features in the future.
 -- 
 --------------------------------------------------------------------
 
@@ -60,17 +61,19 @@ import Network.HTTP.Types (methodGet,
                            methodDelete,
                            headerContentType,
                            Method,
-                           --QueryItem,
                            Query)
 
 --------- Room Operations
+-- |Get a list of rooms visible to the authenticated user.
 getRooms :: CampfireM [Room]
 getRooms = withEnv $ \key sub -> do
   resp <- doGet key sub "rooms.json" []
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
-getRoom :: Integer -> CampfireM Room
+-- |Get a specific room by Room ID.
+getRoom :: Integer -- ^ Room ID
+           -> CampfireM Room
 getRoom rid = withEnv $ \key sub -> do
   resp <- doGet key sub pth []
   let result = handleResponse resp
@@ -78,17 +81,24 @@ getRoom rid = withEnv $ \key sub -> do
   return $ room { roomId = rid }
           where pth = T.concat ["room/", i2t rid, ".json"]
 
+-- |Get a list of rooms in which the authenticated user is present.
 getPresence :: CampfireM [Room]
 getPresence = withEnv $ \key sub -> do
   resp <- doGet key sub "presence.json" []
   let result = handleResponse resp
   return $ (unRooms . unWrap . readResult) result
 
-setRoomTopic :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
+-- |Change the topic of a particular room.
+setRoomTopic :: Integer                            -- ^ Room ID
+                -> T.Text                          -- ^ New topic
+                -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 setRoomTopic rid topic = updateRoom rid RoomUpdate { updateRoomName  = Nothing, 
                                                      updateRoomTopic = Just topic }
 
-setRoomName :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
+-- |Change the name of a particular room.
+setRoomName :: Integer                            -- ^ Room ID
+               -> T.Text                          -- ^ New room name
+               -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 setRoomName rid name = updateRoom rid RoomUpdate { updateRoomName  = Just name, 
                                                    updateRoomTopic = Nothing }
 
@@ -97,34 +107,46 @@ updateRoom rid update = withEnv $ \key sub ->
   doPut key sub pth $ encode update
                   where pth   = T.concat ["room/", i2t rid, ".json"]
 
-joinRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+-- |Causes the authenticated user to join a particular room.
+joinRoom :: Integer                            -- ^ Room ID
+            -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 joinRoom rid = withEnv $ \key sub ->
   doPost key sub pth LBS.empty
                   where pth   = T.concat ["room/", i2t rid, "/join.json"]
 
-leaveRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+-- |Causes the authenticated user to leave a particular room.
+leaveRoom :: Integer                            -- ^ Room ID
+             -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 leaveRoom rid = withEnv $ \key sub ->
   doPost key sub pth LBS.empty
                   where pth   = T.concat ["room/", i2t rid, "/leave.json"]
 
-lockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+-- |Locks a particular room.
+lockRoom :: Integer                            -- ^ Roomd ID
+            -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 lockRoom rid = withEnv $ \key sub ->
   doPost key sub pth LBS.empty
                   where pth   = T.concat ["room/", i2t rid, "/lock.json"]
 
-unlockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
+-- |Unlocks a particular room.
+unlockRoom :: Integer                            -- ^ Room ID
+              -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 unlockRoom rid = withEnv $ \key sub ->
   doPost key sub pth LBS.empty
                   where pth   = T.concat ["room/", i2t rid, "/unlock.json"]
 
 --------- User Operations
+
+-- |Get information about the currently authenticated user.
 getMe :: CampfireM User
 getMe = withEnv $ \key sub -> do
   resp <- doGet key sub "users/me.json" []
   let result = handleResponse resp
   return $ (unRootUser . unWrap . readResult) result
 
-getUser :: Integer -> CampfireM User
+-- |Get information about the requested user.
+getUser :: Integer  -- ^ User ID
+           -> CampfireM User
 getUser rid = withEnv $ \key sub -> do
   resp <- doGet key sub pth []
   let result = handleResponse resp
@@ -132,22 +154,34 @@ getUser rid = withEnv $ \key sub -> do
             where pth = T.concat ["users/", i2t rid, ".json"]
 
 --------- Message Operations
-speak :: Integer -> Statement -> CampfireM (Int, LBS.ByteString)
+
+-- |Say something in a room as the currently authenticated user.
+speak :: Integer      -- ^ The room ID in which to speak
+         -> Statement -- ^ The statement to send to the room
+         -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 speak rid stmt = withEnv $ \key sub ->
   doPost key sub pth $ encode stmt
             where pth = T.concat ["room/", i2t rid, "/speak.json"]
 
-highlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
+-- |Put a star next to a message. That message will then show up in that day's highlights.
+highlightMessage :: Integer                            -- ^ Message ID
+                    -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 highlightMessage mid = withEnv $ \key sub ->
   doPost key sub pth LBS.empty
             where pth = T.concat ["messages/", i2t mid, "/star.json"]
 
-unhighlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
+-- |Remove the star next to a message.
+unhighlightMessage :: Integer                            -- ^ Message ID
+                      -> CampfireM (Int, LBS.ByteString) -- ^ Status code and body (may change)
 unhighlightMessage mid = withEnv $ \key sub ->
   doDelete key sub pth LBS.empty
             where pth = T.concat ["messages/", i2t mid, "/star.json"]
 
-getRecentMessages :: Integer -> Maybe Integer -> Maybe Integer -> CampfireM [Message]
+-- |Receive a list of recent messages in a particular room.
+getRecentMessages :: Integer          -- ^ Room ID
+                     -> Maybe Integer -- ^ Optional limit. Default is 100
+                     -> Maybe Integer -- ^ Optional message ID. Setting this will retreive messages since that message was received.
+                     -> CampfireM [Message]
 getRecentMessages rid limit since_id = withEnv $ \key sub -> do
   resp <- doGet key sub pth params
   let result = handleResponse resp
@@ -159,14 +193,19 @@ getRecentMessages rid limit since_id = withEnv $ \key sub -> do
             limitS (Nothing) = []
             limitS (Just i)  = [("since_message_id", Just $ BS.pack $ show i)]
 
-getTodayTranscript :: Integer -> CampfireM [Message]
+-- |Get a transcript of all messages in a room for the day.
+getTodayTranscript :: Integer -- ^ Room ID
+                      -> CampfireM [Message]
 getTodayTranscript rid = withEnv $ \key sub -> do
   resp <- doGet key sub pth []
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
       where pth = T.concat ["room/", i2t rid, "/transcript.json"]
 
-getTranscript :: Integer -> Day -> CampfireM [Message]
+-- |Get a transcript of all messages in a room for a particular day
+getTranscript :: Integer -- ^ Room ID
+                 -> Day  -- ^ Day from which to retrieve the transcript
+                 -> CampfireM [Message]
 getTranscript rid day = withEnv $ \key sub -> do
   resp <- doGet key sub pth []
   let result = handleResponse resp
@@ -176,7 +215,10 @@ getTranscript rid day = withEnv $ \key sub -> do
                         (y, m, d) = toGregorian day
 
 --------- Upload Operations
-getUploads :: Integer -> CampfireM [Upload]
+
+-- |Get a list of up to 5 recent uploads to a given room
+getUploads :: Integer -- ^ Room ID
+              -> CampfireM [Upload]
 getUploads rid = withEnv $ \key sub -> do
   resp <- doGet key sub pth []
   let result = handleResponse resp
@@ -184,7 +226,11 @@ getUploads rid = withEnv $ \key sub -> do
             where pth = T.concat ["room/", i2t rid, "/uploads.json"]
 
 --FIXME: this may not work, getting 404s
-getUpload :: Integer -> Integer -> CampfireM Upload
+
+-- |Retrieve a particular upload from a room.
+getUpload :: Integer    -- ^ Room ID
+             -> Integer -- ^ Upload ID
+             -> CampfireM Upload
 getUpload rid uid = withEnv $ \key sub -> do
   resp <- doGet key sub pth []
   let result = handleResponse resp
@@ -193,8 +239,11 @@ getUpload rid uid = withEnv $ \key sub -> do
             where pth = T.concat ["room/", i2t rid, "/messages/",
                                    i2t uid, "/upload.json"]
 
---------- Upload Operations
-search :: T.Text -> CampfireM [Message]
+--------- Search Operations
+
+-- |Search for messages matching a given term.
+search :: T.Text -- ^ Search string
+          -> CampfireM [Message]
 search term = withEnv $ \key sub -> do
   resp <- doGet key sub pth []
   let result = handleResponse resp
