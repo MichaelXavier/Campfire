@@ -4,11 +4,9 @@ module Web.Campfire.Types where
 import Control.Applicative ((<$>), (<*>), pure)
 import Control.Monad (mzero)
 import Data.Aeson
-import qualified Data.Aeson.Types as AT (typeMismatch, Parser(..))
-import Data.Attoparsec (parse, maybeResult, eitherResult, Parser(..))
-import Data.ByteString as BS (readFile)
+import qualified Data.Aeson.Types as AT (typeMismatch, Parser)
+--import Data.Attoparsec (parse, maybeResult, eitherResult, Parser)
 import qualified Data.Text as T
-import qualified Data.Text.IO as TI
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
 import qualified Data.Map as M

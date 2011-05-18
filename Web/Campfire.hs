@@ -45,10 +45,10 @@ import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy.Char8 as LBS
 import Data.Text.Encoding (encodeUtf8)
 import Data.Aeson
-import Data.Attoparsec (parse, maybeResult, eitherResult)
+import Data.Attoparsec (parse, eitherResult)
 import Data.Time.Calendar (Day(..), toGregorian)
 
-import Control.Monad
+--import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Reader
 
@@ -59,9 +59,9 @@ import Network.HTTP.Types (methodGet,
                            methodPost,
                            methodDelete,
                            headerContentType,
-                           Method(..),
-                           QueryItem(..),
-                           Query(..))
+                           Method,
+                           --QueryItem,
+                           Query)
 
 --------- Room Operations
 getRooms :: CampfireM [Room]
@@ -71,12 +71,12 @@ getRooms = withEnv $ \key sub -> do
   return $ (unRooms . unWrap . readResult) result
 
 getRoom :: Integer -> CampfireM Room
-getRoom id = withEnv $ \key sub -> do
-  resp <- doGet key sub path []
+getRoom rid = withEnv $ \key sub -> do
+  resp <- doGet key sub pth []
   let result = handleResponse resp
   let room = unRootRoom $ (unWrap . readResult) result
-  return $ room { roomId = id }
-          where path = T.concat ["room/", i2t id, ".json"]
+  return $ room { roomId = rid }
+          where pth = T.concat ["room/", i2t rid, ".json"]
 
 getPresence :: CampfireM [Room]
 getPresence = withEnv $ \key sub -> do
@@ -85,37 +85,37 @@ getPresence = withEnv $ \key sub -> do
   return $ (unRooms . unWrap . readResult) result
 
 setRoomTopic :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
-setRoomTopic id topic = updateRoom id RoomUpdate { updateRoomName  = Nothing, 
-                                                   updateRoomTopic = Just topic }
+setRoomTopic rid topic = updateRoom rid RoomUpdate { updateRoomName  = Nothing, 
+                                                     updateRoomTopic = Just topic }
 
 setRoomName :: Integer -> T.Text -> CampfireM (Int, LBS.ByteString)
-setRoomName id name = updateRoom id RoomUpdate { updateRoomName  = Just name, 
-                                                 updateRoomTopic = Nothing }
+setRoomName rid name = updateRoom rid RoomUpdate { updateRoomName  = Just name, 
+                                                   updateRoomTopic = Nothing }
 
 updateRoom :: Integer -> RoomUpdate -> CampfireM (Int, LBS.ByteString)
-updateRoom id update = withEnv $ \key sub ->
-  doPost key sub path $ encode update
-                  where path   = T.concat ["room/", i2t id, ".json"]
+updateRoom rid update = withEnv $ \key sub ->
+  doPut key sub pth $ encode update
+                  where pth   = T.concat ["room/", i2t rid, ".json"]
 
 joinRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-joinRoom id = withEnv $ \key sub ->
-  doPost key sub path LBS.empty
-                  where path   = T.concat ["room/", i2t id, "/join.json"]
+joinRoom rid = withEnv $ \key sub ->
+  doPost key sub pth LBS.empty
+                  where pth   = T.concat ["room/", i2t rid, "/join.json"]
 
 leaveRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-leaveRoom id = withEnv $ \key sub ->
-  doPost key sub path LBS.empty
-                  where path   = T.concat ["room/", i2t id, "/leave.json"]
+leaveRoom rid = withEnv $ \key sub ->
+  doPost key sub pth LBS.empty
+                  where pth   = T.concat ["room/", i2t rid, "/leave.json"]
 
 lockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-lockRoom id = withEnv $ \key sub ->
-  doPost key sub path LBS.empty
-                  where path   = T.concat ["room/", i2t id, "/lock.json"]
+lockRoom rid = withEnv $ \key sub ->
+  doPost key sub pth LBS.empty
+                  where pth   = T.concat ["room/", i2t rid, "/lock.json"]
 
 unlockRoom :: Integer -> CampfireM (Int, LBS.ByteString)
-unlockRoom id = withEnv $ \key sub ->
-  doPost key sub path LBS.empty
-                  where path   = T.concat ["room/", i2t id, "/unlock.json"]
+unlockRoom rid = withEnv $ \key sub ->
+  doPost key sub pth LBS.empty
+                  where pth   = T.concat ["room/", i2t rid, "/unlock.json"]
 
 --------- User Operations
 getMe :: CampfireM User
@@ -125,81 +125,81 @@ getMe = withEnv $ \key sub -> do
   return $ (unRootUser . unWrap . readResult) result
 
 getUser :: Integer -> CampfireM User
-getUser id = withEnv $ \key sub -> do
-  resp <- doGet key sub path []
+getUser rid = withEnv $ \key sub -> do
+  resp <- doGet key sub pth []
   let result = handleResponse resp
   return $ (unRootUser . unWrap . readResult) result
-            where path = T.concat ["users/", i2t id, ".json"]
+            where pth = T.concat ["users/", i2t rid, ".json"]
 
 --------- Message Operations
 speak :: Integer -> Statement -> CampfireM (Int, LBS.ByteString)
-speak id stmt = withEnv $ \key sub ->
-  doPost key sub path $ encode stmt
-            where path = T.concat ["room/", i2t id, "/speak.json"]
+speak rid stmt = withEnv $ \key sub ->
+  doPost key sub pth $ encode stmt
+            where pth = T.concat ["room/", i2t rid, "/speak.json"]
 
 highlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
-highlightMessage id = withEnv $ \key sub ->
-  doPost key sub path LBS.empty
-            where path = T.concat ["messages/", i2t id, "/star.json"]
+highlightMessage mid = withEnv $ \key sub ->
+  doPost key sub pth LBS.empty
+            where pth = T.concat ["messages/", i2t mid, "/star.json"]
 
 unhighlightMessage :: Integer -> CampfireM (Int, LBS.ByteString)
-unhighlightMessage id = withEnv $ \key sub ->
-  doDelete key sub path LBS.empty
-            where path = T.concat ["messages/", i2t id, "/star.json"]
+unhighlightMessage mid = withEnv $ \key sub ->
+  doDelete key sub pth LBS.empty
+            where pth = T.concat ["messages/", i2t mid, "/star.json"]
 
 getRecentMessages :: Integer -> Maybe Integer -> Maybe Integer -> CampfireM [Message]
-getRecentMessages id limit since_id = withEnv $ \key sub -> do
-  resp <- doGet key sub path params
+getRecentMessages rid limit since_id = withEnv $ \key sub -> do
+  resp <- doGet key sub pth params
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
       where params           = limitP limit ++ limitS since_id
-            path             = T.concat ["room/", i2t id, "/recent.json"]
+            pth             = T.concat ["room/", i2t rid, "/recent.json"]
             limitP (Nothing) = []
             limitP (Just l)  = [("limit", Just $ BS.pack $ show l)]
             limitS (Nothing) = []
             limitS (Just i)  = [("since_message_id", Just $ BS.pack $ show i)]
 
 getTodayTranscript :: Integer -> CampfireM [Message]
-getTodayTranscript id = withEnv $ \key sub -> do
-  resp <- doGet key sub path []
+getTodayTranscript rid = withEnv $ \key sub -> do
+  resp <- doGet key sub pth []
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
-      where path = T.concat ["room/", i2t id, "/transcript.json"]
+      where pth = T.concat ["room/", i2t rid, "/transcript.json"]
 
 getTranscript :: Integer -> Day -> CampfireM [Message]
-getTranscript id day = withEnv $ \key sub -> do
-  resp <- doGet key sub path []
+getTranscript rid day = withEnv $ \key sub -> do
+  resp <- doGet key sub pth []
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
-                  where path = T.concat ["room/", i2t id, "/transcript/", i2t y, 
+                  where pth = T.concat ["room/", i2t rid, "/transcript/", i2t y, 
                                          "/", i2t m, "/", i2t d, ".json"]
                         (y, m, d) = toGregorian day
 
 --------- Upload Operations
 getUploads :: Integer -> CampfireM [Upload]
-getUploads id = withEnv $ \key sub -> do
-  resp <- doGet key sub path []
+getUploads rid = withEnv $ \key sub -> do
+  resp <- doGet key sub pth []
   let result = handleResponse resp
   return $ (unUploads . unWrap . readResult) result
-            where path = T.concat ["room/", i2t id, "/uploads.json"]
+            where pth = T.concat ["room/", i2t rid, "/uploads.json"]
 
 --FIXME: this may not work, getting 404s
 getUpload :: Integer -> Integer -> CampfireM Upload
-getUpload roomId uploadId = withEnv $ \key sub -> do
-  resp <- doGet key sub path []
+getUpload rid uid = withEnv $ \key sub -> do
+  resp <- doGet key sub pth []
   let result = handleResponse resp
   let upload = unRootUpload $ (unWrap . readResult) result
   return upload
-            where path = T.concat ["room/", i2t roomId, "/messages/",
-                                   i2t uploadId, "/upload.json"]
+            where pth = T.concat ["room/", i2t rid, "/messages/",
+                                   i2t uid, "/upload.json"]
 
 --------- Upload Operations
 search :: T.Text -> CampfireM [Message]
 search term = withEnv $ \key sub -> do
-  resp <- doGet key sub path []
+  resp <- doGet key sub pth []
   let result = handleResponse resp
   return $ (unMessages . unWrap . readResult) result
-            where path = T.concat ["search/", encTerm, ".json"]
+            where pth = T.concat ["search/", encTerm, ".json"]
                   encTerm = T.pack $ encString True ok_path $ T.unpack term
 
 --------- Helpers
@@ -209,8 +209,6 @@ withEnv fn = do
   sub <- asks cfSubDomain
   fn key sub
 
-
-
 i2t :: (Integral a) => a -> T.Text
 i2t = T.pack . show
 
@@ -219,10 +217,10 @@ unWrap (Success a) = a
 unWrap (Error err) = error $ "parse error: " ++ err
 
 doGet :: T.Text -> T.Text -> T.Text -> Query -> CampfireM (Int, LBS.ByteString)
-doGet key sub path params = liftIO $ withManager $ \manager -> do
+doGet key sub pth params = liftIO $ withManager $ \manager -> do
   Response { statusCode = c, responseBody = b} <- httpLbsRedirect req manager
   return (c, b)
-                  where req = genRequest key sub path params methodGet LBS.empty
+                  where req = genRequest key sub pth params methodGet LBS.empty
 
 doPost :: T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.ByteString)
 doPost = postWithPayload methodPost
@@ -234,19 +232,19 @@ doDelete :: T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.
 doDelete = postWithPayload methodDelete
 
 postWithPayload :: Method -> T.Text -> T.Text -> T.Text -> LBS.ByteString -> CampfireM (Int, LBS.ByteString)
-postWithPayload meth key sub path pay = liftIO $ withManager $ \manager -> do
+postWithPayload meth key sub pth pay = liftIO $ withManager $ \manager -> do
   Response { statusCode = c, responseBody = b} <- httpLbsRedirect req manager
   return (c, b)
-                     where req = genRequest key sub path [] meth pay
+                     where req = genRequest key sub pth [] meth pay
 
 genRequest :: T.Text -> T.Text -> T.Text -> Query -> Method -> LBS.ByteString -> Request IO
-genRequest key sub path params meth pay = applyBasicAuth bkey "X" Request { 
+genRequest key sub pth params meth pay = applyBasicAuth bkey "X" Request { 
   method         = meth,
   secure         = True,
   checkCerts     = \_ -> return True, -- uhhh
   host           = h,
   port           = 443,
-  path           = encodeUtf8 path,
+  path           = encodeUtf8 pth,
   queryString    = params,
   requestHeaders = headers,
   requestBody    = RequestBodyLBS pay }
