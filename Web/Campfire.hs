@@ -13,6 +13,31 @@
 -- Covers the entire campfire API excluding the streaming and file upload APIs.
 -- Might include support for these features in the future.
 -- 
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > import Web.Campfire
+-- > import Web.Campfire.Monad
+-- > import Web.Campfire.Types
+-- > import Control.Monad.Reader
+-- > import Data.Text (unpack)
+-- > 
+-- > doStuff :: CampfireM ()
+-- > doStuff = do
+-- >   (room:_) <- getRooms
+-- >   let rid = roomId room
+-- >   joinRoom rid
+-- >   speak rid stmt
+-- >   leaveRoom rid
+-- >   return ()
+-- >           where stmt = TextStatement { statementBody = "ATTENTION: I have nothing important to say" }
+-- > 
+-- > main :: IO ()
+-- > main = do
+-- >   runReaderT (unCampfireM doStuff) env
+-- >   me <- runReaderT (unCampfireM getMe) env
+-- >   putStrLn "Hello, my name is:"
+-- >   putStrLn . unpack $ userName me
+-- >        where env  = CampfireEnv { cfKey = "MYKEY", cfSubDomain = "mysubdomain"}
+-- 
 --------------------------------------------------------------------
 
 {-# LANGUAGE OverloadedStrings #-}

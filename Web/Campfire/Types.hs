@@ -43,8 +43,8 @@ import Data.Typeable
 import Locale (defaultTimeLocale)
 
 ---------- Rooms
+-- |A chat room on a Campfire site
 data Room 
-  -- |A chat room on a Campfire site
   = Room { roomId               :: Id,
            roomName             :: T.Text,
            roomTopic            :: Maybe T.Text, -- ^ Room topic if available
@@ -174,7 +174,6 @@ data Statement = TextStatement { statementBody :: T.Text } |
                  TweetStatement { statementUrl  :: T.Text}   -- ^ Display a tweet from a url on Twitter
                  deriving (Eq, Ord, Read, Show, Typeable)
 
---FIXME: wrap all instances in root object
 instance ToJSON Statement where
   toJSON TextStatement  { statementBody = b} =
     "message" |- object ["type" .= ("TextMessage" :: T.Text), "body" .= b]
