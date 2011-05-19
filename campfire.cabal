@@ -1,10 +1,14 @@
 name: campfire
-version: 0.0.0
+version: 0.0.1
 synopsis: Haskell implementation of the Campfire API
 description:
    Implements the Campfire REST API. Campfire is a business group chat system
    tailored specifically for work groups. Find out more at
-   http://www.campfirenow.com
+   <http://www.campfirenow.com>.
+
+   Currently supports the entire API except for streaming and file uploads.
+   Stability is listed as provisional because there are currently no formal
+   tests in place.
 
 category:           Web
 license:            BSD3
