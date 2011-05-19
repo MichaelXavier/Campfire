@@ -1,19 +1,23 @@
 name: campfire
-version: 0.0.0
+version: 0.0.1
 synopsis: Haskell implementation of the Campfire API
 description:
    Implements the Campfire REST API. Campfire is a business group chat system
    tailored specifically for work groups. Find out more at
-   http://www.campfirenow.com
+   <http://www.campfirenow.com>.
+
+   Currently supports the entire API except for streaming and file uploads.
+   Stability is listed as provisional because there are currently no formal
+   tests in place.
 
 category:           Web
 license:            BSD3
 license-file:       LICENSE
 author:             Michael Xavier <michael@michaelxavier.net>
 maintainer:         Michael Xavier <michael@michaelxavier.net>
-cabal-version:      >= 1.2
+cabal-version:      >= 1.6
 build-type:         Simple
-extra-source-files: README CHANGES
+extra-source-files: README
 homepage:           http://github.com/michaelxavier/Campfire
 
 library
@@ -21,7 +25,7 @@ library
                   Web.Campfire.Types,
                   Web.Campfire.Monad
  Ghc-Options:     -Wall
- build-depends:   base,
+ build-depends:   base            >= 4        && < 5,
                   aeson           >= 0.3.1.1  && < 0.4,
                   bytestring      >= 0.9.1.10 && < 0.10,
                   text            >= 0.11.0.5 && < 0.12,
