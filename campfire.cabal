@@ -39,6 +39,11 @@ library
                   haskell98       >= 1.1.0.1  && < 1.2,
                   containers      >= 0.4.0.0  && < 0.5
 
+Test-Suite tests-parsing
+  type: detailed-1.0
+  test-module: Tests.Parsing
+  build-depends: base, Cabal >= 1.9.2
+
 source-repository head
   type:     git
   location: git://github.com/michaelxavier/Campfire.git
