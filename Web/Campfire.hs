@@ -312,19 +312,20 @@ postWithPayload meth key sub pth pay = liftIO $ withManager $ \manager -> do
                      where req = genRequest key sub pth [] meth pay
 
 genRequest :: T.Text -> T.Text -> T.Text -> Query -> Method -> LBS.ByteString -> Request IO
-genRequest key sub pth params meth pay = applyBasicAuth bkey "X" Request { 
-  method         = meth,
-  secure         = True,
-  checkCerts     = \_ -> return True, -- uhhh
-  host           = h,
-  port           = 443,
-  path           = encodeUtf8 pth,
-  queryString    = params,
-  requestHeaders = headers,
-  requestBody    = RequestBodyLBS pay }
-                    where h       = encodeUtf8 $ T.concat [sub, ".campfirenow.com"]
-                          headers = [headerContentType "application/json"]
-                          bkey    = encodeUtf8 key
+genRequest key sub pth params meth pay = applyBasicAuth bkey "X" req
+  where req = def {
+          method         = meth,
+          secure         = True,
+          host           = h,
+          port           = 443,
+          path           = encodeUtf8 pth,
+          queryString    = params,
+          requestHeaders = headers,
+          requestBody    = RequestBodyLBS pay
+        } 
+        h       = encodeUtf8 $ T.concat [sub, ".campfirenow.com"]
+        headers = [headerContentType "application/json"]
+        bkey    = encodeUtf8 key
 
 handleResponse :: (Int, LBS.ByteString) -> Either Int T.Text
 handleResponse (200, str) = Right $ T.pack $ LBS.unpack str
