@@ -37,10 +37,10 @@ import qualified Data.Aeson.Types as AT (typeMismatch, Parser)
 import qualified Data.Text as T
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format
-import qualified Data.Map as M
+import qualified Data.HashMap.Strict as M
 import Data.Text
 import Data.Typeable
-import Locale (defaultTimeLocale)
+import System.Locale (defaultTimeLocale)
 
 ---------- Rooms
 -- |A chat room on a Campfire site

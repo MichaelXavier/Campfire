@@ -283,7 +283,7 @@ withEnv fn = do
   sub <- asks cfSubDomain
   fn key sub
 
-i2t :: (Integral a) => a -> T.Text
+i2t :: (Integral a, Show a) => a -> T.Text
 i2t = T.pack . show
 
 unWrap :: (FromJSON a) => Result a -> a

@@ -1,5 +1,5 @@
-CABAL = cabal
-GHC_PKG = ghc-pkg
+CABAL=cabal-dev
+GHC_PKG=ghc-pkg
 
 all: build
 
@@ -16,10 +16,17 @@ build: configure install_deps
 	$(CABAL) build
 
 install_deps: campfire.cabal
-	$(CABAL) install --only-dependencies
+	$(CABAL) install-deps
 
 configure: campfire.cabal **/*.hs
 	$(CABAL) configure
+
+spec: configure_tests
+	$(CABAL) build
+	$(CABAL) test
+
+configure_tests:
+	$(CABAL) configure --enable-tests
 
 clean:
 	$(CABAL) clean
